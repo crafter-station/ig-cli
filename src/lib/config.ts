@@ -31,6 +31,11 @@ export const ConfigSchema = z.object({
    * `ig auth login` always shows it.
    */
   browserWindow: z.enum(["offscreen", "visible"]).default("offscreen"),
+  /**
+   * After an ordinary command, install or update this CLI's agent skill for
+   * every agent found in the home directory. `ig skill uninstall` turns it off.
+   */
+  autoInstallSkill: z.boolean().default(true),
   limits: z
     .object({
       browser: BackendLimits.default({ dailyBudget: 400, delayMs: [2500, 6000] }),
@@ -83,6 +88,7 @@ export const SETTABLE_KEYS = [
   "mediaDir",
   "minRefreshDays",
   "browserWindow",
+  "autoInstallSkill",
   "limits.browser.dailyBudget",
   "limits.hiker.dailyBudget",
 ] as const;
@@ -101,7 +107,13 @@ export function setConfigValue(config: Config, key: string, value: string): Conf
   }
   const leaf = parts[parts.length - 1] as string;
   const numeric = key === "minRefreshDays" || key.endsWith("dailyBudget");
-  cursor[leaf] = numeric ? Number(value) : value;
+  const boolean = key === "autoInstallSkill";
+  if (boolean && value !== "true" && value !== "false") {
+    throw new IgError("INVALID_INPUT", `Invalid value for ${key}: ${value}`, {
+      hint: "Use true or false.",
+    });
+  }
+  cursor[leaf] = boolean ? value === "true" : numeric ? Number(value) : value;
 
   const parsed = ConfigSchema.safeParse(next);
   if (!parsed.success) {

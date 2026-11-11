@@ -291,6 +291,7 @@ export function metaCommands(getAll: () => CommandDef[]) {
           ["backend", c.backend],
           ["minRefreshDays", String(c.minRefreshDays)],
           ["browserWindow", c.browserWindow],
+          ["autoInstallSkill", String(c.autoInstallSkill)],
           ["limits.browser.dailyBudget", String(c.limits.browser.dailyBudget)],
           ["limits.hiker.dailyBudget", String(c.limits.hiker.dailyBudget)],
           ["mediaDir", data.paths.mediaDir],
@@ -309,7 +310,7 @@ export function metaCommands(getAll: () => CommandDef[]) {
       key: z.string().describe(`One of: ${SETTABLE_KEYS.join(", ")}`),
       value: z.string(),
     }),
-    output: z.object({ key: z.string(), value: z.union([z.string(), z.number()]) }),
+    output: z.object({ key: z.string(), value: z.union([z.string(), z.number(), z.boolean()]) }),
     network: false,
     writes: "local",
     configure: (cmd) =>
@@ -323,7 +324,8 @@ export function metaCommands(getAll: () => CommandDef[]) {
         .split(".")
         .reduce<unknown>((acc, part) => (acc as Record<string, unknown>)[part], next) as
         | string
-        | number;
+        | number
+        | boolean;
       return { data: { key: input.key, value } };
     },
     human: (data) => {

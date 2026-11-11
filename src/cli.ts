@@ -6,6 +6,7 @@ import { printBanner } from "./cligentic/foundation/banner.js";
 import { commands, GROUPS } from "./commands/index.js";
 import { schemaIndex } from "./commands/meta.js";
 import { Context, type GlobalOptions } from "./context.js";
+import { autoInstallSkill } from "./core/skill.js";
 import { type CommandDef, outputFields, parseInput } from "./lib/command.js";
 import { EXIT, IgError, toIgError } from "./lib/errors.js";
 import {
@@ -48,6 +49,24 @@ function parseParams(raw: string | undefined): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+/**
+ * Keeps the agent skill installed and matching this version of the CLI. An
+ * isolated run (IG_CLI_HOME set) leaves the real home directory alone unless
+ * the agents home is redirected too.
+ */
+function keepSkillCurrent(def: CommandDef, ctx: Context): void {
+  if (def.id.startsWith("skill.")) return;
+  if (process.env.IG_CLI_HOME && !process.env.IG_CLI_AGENTS_HOME) return;
+  try {
+    if (!ctx.config.autoInstallSkill) return;
+  } catch {
+    return;
+  }
+  for (const done of autoInstallSkill()) {
+    ctx.log(`agent skill ${done.action} for ${done.agent}: ${done.path}`);
+  }
+}
+
 async function run(
   def: CommandDef,
   positional: unknown[],
@@ -66,6 +85,7 @@ async function run(
     const input = parseInput(def, { ...flagInput, ...named, ...parseParams(globals.params) });
 
     const result = await def.handler(input, ctx);
+    keepSkillCurrent(def, ctx);
     const meta = { ...(result.meta ?? {}), nextSteps: result.nextSteps ?? [] };
     // Filter before branching on mode, so --fields means the same for both.
     const data = applyFields(result.data, globals.fields, outputFields(def.output));
