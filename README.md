@@ -5,6 +5,7 @@
 **Instagram creator research from the terminal.**<br>
 Built for AI agents to operate and for humans to supervise.
 
+[![npm](https://img.shields.io/npm/v/%40jibaru%2Fig-cli?logo=npm)](https://www.npmjs.com/package/@jibaru/ig-cli)
 [![Node](https://img.shields.io/badge/node-%E2%89%A5%2022.13-339933?logo=node.js&logoColor=white)](https://nodejs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](tsconfig.json)
 [![Tests](https://img.shields.io/badge/tests-324%20passing-brightgreen)](test)
@@ -63,7 +64,14 @@ $ ig video top --niche cocina --limit 3
 
 ## Install
 
-Requirements: **Node.js 22.13+** and **Google Chrome**. [Bun](https://bun.sh) is used to install dependencies and build.
+Requirements: **Node.js 22.13+** and **Google Chrome**.
+
+```bash
+npm install -g @jibaru/ig-cli
+ig doctor
+```
+
+From source, with [Bun](https://bun.sh):
 
 ```bash
 git clone https://github.com/crafter-station/ig-cli
@@ -71,7 +79,6 @@ cd ig-cli
 bun install
 bun run build
 npm link          # puts `ig` on your PATH
-ig doctor
 ```
 
 ## Quick start
@@ -271,7 +278,6 @@ Built with the [`cli-build`](https://github.com/crafter-station/skills/tree/main
 - The official Business Discovery API as a third, no-risk backend for metrics.
 - Semantic search over captions and transcripts.
 - Fuller caption coverage on refresh.
-- Publication to npm.
 
 ## License
 
