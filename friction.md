@@ -57,3 +57,20 @@ The halt marker is this CLI's killswitch, sized to a read-only tool. It fails cl
 - **`--fields` against an open-ended output.** `ig schema` returns a loose object, so validating `--fields` against the declared shape rejected every real key. Field validation falls back to the keys actually present when the output declares none.
 - **`bunx --bun shadcn@latest` failed under Git Bash on Windows** with `Script not found "shadcn@latest"` (bun 1.2.0). `npx -y shadcn@latest` worked. The cligentic skill's commands assume bunx.
 - **Bun's `.bin` shims are `.exe`/`.bunx` files that `npx` does not find**, so `npx tsc` downloaded a decoy package. Everything runs through `bun run <script>`.
+
+## Recon: what the terrain turned out to be
+
+The research pass said to intercept the web app's `api/v1` endpoints (`web_profile_info`, `clips/user`, `topsearch`). Live, from inside the logged-in page, three of those answered 404. The current web app loads everything through GraphQL, identified by an `x-fb-friendly-name` header, plus JSON embedded in the HTML of a reel page. Two more recon runs mapped which operation carries which field. The backend reads responses by friendly name and never builds a request, so rotating query ids do not break it.
+
+No single surface has everything. The reels tab has play counts but no caption, date or video URL; the timeline and the reel page have those but no play count. The backend joins them, and derives a reel's date from its media id.
+
+About 25 requests were spent on recon and 8 on the end-to-end check, with no rate limit or checkpoint.
+
+## More things that went wrong
+
+- **A collaboration reel would have crashed a refresh.** A reel on one creator's tab can name another account as its user. Stored as-is it references a creator row that does not exist. Found only because a live capture happened to contain one; the doc-derived fixtures of the other backend did not. Fixed in the shared refresh, so it holds for every backend.
+- **The harness could not create worktrees for subagents** because the session started before `git init`. Worktrees were created by hand and each agent was told its directory.
+- **zod returns the same default object on every parse.** Mutating one Context's config leaked into the next within a process. Harmless in the CLI, wrong in tests. A subagent found it; `loadConfig` now returns a copy.
+- **A column where every row said the same thing.** The duration column was a column of dashes on the browser backend, which never learns durations. It is now shown only when some row has one.
+- **A group invoked alone printed `(outputHelp)` as its error message** in machine mode. Bare-ish invocations are the case nobody tests.
+- **`biome migrate` rewrote `recommended: true` to `preset: "none"`,** silently turning linting off. Caught because a suppression comment was then reported as unused.
