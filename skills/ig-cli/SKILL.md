@@ -108,6 +108,10 @@ ig video discover gta6 --hashtag
 - **`takenAt` from a refresh is the upload time**, about a minute before the published time.
 - **This CLI does not post, like, comment or follow.** It is read-only.
 
+## This manual
+
+The CLI installs this file itself and keeps it matching the installed version. `ig skill status` shows where it lives and whether it is current; `ig skill install` repairs it. If a command here disagrees with `ig schema`, trust `ig schema`.
+
 ## Backends
 
 - `browser` (default): a logged-in Chrome on a dedicated profile. Free. Risk falls on that Instagram account, so it must be a secondary one.

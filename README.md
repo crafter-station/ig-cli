@@ -78,7 +78,14 @@ Output is a JSON envelope whenever stdout is not a terminal:
 { "ok": false, "error": { "code": "HALTED", "message": "...", "hint": "..." } }
 ```
 
-The agent manual is [`skills/ig-cli/SKILL.md`](skills/ig-cli/SKILL.md).
+The agent manual is [`skills/ig-cli/SKILL.md`](skills/ig-cli/SKILL.md), and the CLI installs it for you. After any ordinary command it writes the manual into `~/.claude/skills/ig-cli/` (Claude Code) and `~/.agents/skills/ig-cli/` (the directory Codex, Cursor, Gemini CLI and others share), for whichever of those already exist, and replaces it when a new version of the CLI ships a new manual.
+
+```bash
+ig skill status              # where it is installed, and whether it is current
+ig skill install             # install or update now
+ig skill install --project   # into ./.claude and ./.agents of the current repo
+ig skill uninstall           # remove it and stop installing it automatically
+```
 
 ## Storage
 

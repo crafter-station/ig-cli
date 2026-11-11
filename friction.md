@@ -35,6 +35,7 @@ Registry: `@cligentic`, registered in `package.json`, no `components.json` creat
 | `doctor` | reject | Depends on `json-mode`; checks here also need `required` and `hint` |
 | `config` | reject | Profile-oriented loader; this CLI has one zod-validated config with defaults |
 | `prompt-secret` | reject | No secret is ever typed: the HikerAPI key comes from the environment, the Instagram login happens in the browser window |
+| `skill-installer-prompt` | reject | It asks a question and then shells out to `npx skills add owner/repo`. A prompt is a failure mode for an agent, and the repository is private, so the fetch would fail. The CLI writes its own bundled SKILL.md instead: `ig skill install`, plus an automatic install after ordinary commands |
 | `trust-ladder`, `audit-log`, `audit-lifecycle`, `killswitch` | reject for v1 | See Phase 4. They come back with publishing in v2 |
 | `argv`, `global-flags` | reject | commander handles parsing; global flags are declared per leaf command |
 
