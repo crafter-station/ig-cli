@@ -1,5 +1,5 @@
 {
-  "name": "@crafter-station/ig-cli",
+  "name": "@jibaru/ig-cli",
   "version": "0.1.0",
   "description": "Agent-first CLI for Instagram creator research: discover creators, track reel metrics, find top videos, download them.",
   "keywords": [
@@ -24,7 +24,7 @@
   "author": "Crafter Station",
   "type": "module",
   "bin": {
-    "ig": "./dist/cli.js"
+    "ig": "dist/cli.js"
   },
   "files": [
     "dist",
