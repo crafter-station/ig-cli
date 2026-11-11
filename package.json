@@ -1,0 +1,40 @@
+{
+  "name": "@crafter-station/ig-cli",
+  "version": "0.1.0",
+  "description": "Agent-first CLI for Instagram creator research: discover creators, track reel metrics, find top videos, download them.",
+  "type": "module",
+  "bin": {
+    "ig": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "skills"
+  ],
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsx src/cli.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "biome check .",
+    "format": "biome check --write ."
+  },
+  "license": "MIT",
+  "dependencies": {
+    "commander": "^15.1.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.6.6",
+    "@types/node": "^26.6.6",
+    "tsup": "^9.0.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  },
+  "registries": {
+    "@cligentic": "https://cligentic.railly.dev/r/{name}.json"
+  }
+}

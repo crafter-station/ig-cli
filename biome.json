@@ -1,0 +1,7 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.6.6/schema.json",
+  "files": { "includes": ["src/**", "test/**", "*.ts", "*.json", "!test/fixtures", "!src/cligentic"] },
+  "formatter": { "indentStyle": "space", "indentWidth": 2, "lineWidth": 100 },
+  "linter": { "enabled": true, "rules": { "preset": "none" } },
+  "assist": { "actions": { "source": { "organizeImports": "on" } } }
+}
