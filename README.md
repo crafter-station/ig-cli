@@ -48,10 +48,12 @@ Every command prints what to run next.
 
 | Backend | How | Cost | Risk |
 |---|---|---|---|
-| `browser` (default) | A visible Chrome on a dedicated profile; reads the JSON Instagram's web app loads for itself | Free | The logged-in account |
+| `browser` (default) | A real Chrome on a dedicated profile; reads the JSON Instagram's web app loads for itself | Free | The logged-in account |
 | `hiker` | [HikerAPI](https://hikerapi.com), set `HIKERAPI_KEY` | About $1 per 1,000 requests | None to an account |
 
 The `hiker` backend is written from the provider's documentation and has not been run against a live key yet. See `test/fixtures/hiker/README.md` for the checklist.
+
+The browser backend's Chrome window is parked off-screen so it does not interrupt you; it still shows in the taskbar while a command runs. `ig config set browserWindow visible` brings it back, which helps when diagnosing a problem. `ig auth login browser` always shows it.
 
 Both pass through the same gate: a daily request budget, a random pause before each request, and an immediate halt on a rate limit or checkpoint. A halt stays until you run `ig auth resume <backend>`.
 
