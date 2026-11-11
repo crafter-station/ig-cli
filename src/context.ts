@@ -80,6 +80,11 @@ export class Context {
     return backend;
   }
 
+  /** Registers a ready-made backend instance. Tests use this to inject a fake. */
+  useBackend(backend: Backend): void {
+    this.backends.set(backend.name, backend);
+  }
+
   async close(): Promise<void> {
     for (const backend of this.backends.values()) {
       try {
