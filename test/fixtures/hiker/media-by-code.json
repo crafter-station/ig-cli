@@ -1,0 +1,57 @@
+{
+  "pk": "3776832898280228145",
+  "id": "3776832898280228145_787132",
+  "code": "DRqAYKuAIUx",
+  "taken_at": "2025-11-29T22:00:31Z",
+  "taken_at_ts": 1764453631,
+  "media_type": 2,
+  "product_type": "clips",
+  "thumbnail_url": "https://scontent-lax3-1.cdninstagram.com/...",
+  "user": {
+    "pk": "787132",
+    "id": "787132",
+    "username": "natgeo",
+    "full_name": "National Geographic",
+    "profile_pic_url": "https://scontent-lax3-1.cdninstagram.com/...",
+    "is_private": false,
+    "is_verified": true
+  },
+  "comment_count": 485,
+  "comments_disabled": false,
+  "like_count": 135428,
+  "play_count": 2866123,
+  "has_liked": false,
+  "caption_text": "Even the heaviest rain feels peaceful here.\n\n#HostilePlanet is now streaming on @DisneyPlus.",
+  "usertags": [],
+  "sponsor_tags": [],
+  "video_url": "https://scontent-lax3-1.cdninstagram.com/...",
+  "view_count": 0,
+  "video_duration": 22.31399917602539,
+  "title": "",
+  "resources": [],
+  "image_versions": [
+    {
+      "estimated_scans_sizes": [27870, 55740, 83610],
+      "height": 1333,
+      "scans_profile": "e35",
+      "url": "https://scontent-lax3-1.cdninstagram.com/...",
+      "width": 750,
+      "is_spatial_image": false
+    }
+  ],
+  "video_versions": [
+    {
+      "bandwidth": 2315752,
+      "height": 1280,
+      "id": "1525428988604088v",
+      "type": 101,
+      "url": "https://scontent-lax3-1.cdninstagram.com/...",
+      "url_expiration_timestamp_us": null,
+      "width": 720,
+      "fallback": null
+    }
+  ],
+  "like_and_view_counts_disabled": false,
+  "coauthor_producers": [],
+  "is_paid_partnership": false
+}

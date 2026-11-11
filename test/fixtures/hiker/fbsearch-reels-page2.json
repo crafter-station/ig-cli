@@ -1,0 +1,58 @@
+{
+  "reels_serp_modules": [
+    {
+      "module_type": "clips",
+      "clips": [
+        {
+          "media": {
+            "id": "3806000000000000777_46255311",
+            "pk": 3806000000000000777,
+            "media_type": 2,
+            "taken_at": 1767915000,
+            "product_type": "clips",
+            "like_count": 98000,
+            "comment_count": 1589,
+            "play_count": 5027379,
+            "video_duration": 19.20199966430664,
+            "video_versions": [
+              { "height": 1280, "url": "https://scontent-dfw5-1.cdninstagram.com/...", "width": 720 }
+            ],
+            "user": { "pk": 46255311, "pk_id": "46255311", "id": "46255311", "username": "markian.b" },
+            "code": "DTVUXEWkVbX",
+            "like_and_view_counts_disabled": false
+          }
+        },
+        {
+          "media": {
+            "id": "3790000000000000555_55500011",
+            "pk": 3790000000000000555,
+            "media_type": 2,
+            "taken_at": 1766000000,
+            "product_type": "clips",
+            "like_count": -1,
+            "caption": { "pk": "1", "text": "Counts hidden by the owner." },
+            "video_duration": 8.4,
+            "video_versions": [],
+            "image_versions2": { "candidates": [] },
+            "user": {
+              "pk": 55500011,
+              "pk_id": "55500011",
+              "id": "55500011",
+              "username": "hides.counts",
+              "full_name": "Hides Counts",
+              "is_private": false,
+              "is_verified": false
+            },
+            "code": "HIDDENsrch1",
+            "like_and_view_counts_disabled": true
+          }
+        }
+      ]
+    }
+  ],
+  "has_more": false,
+  "reels_max_id": "r:lastpage",
+  "page_index": 13,
+  "rank_token": "47d590f0-b44c-4428-952d-4e5422909af8",
+  "status": "ok"
+}

@@ -1,0 +1,132 @@
+{
+  "reels_serp_modules": [
+    {
+      "module_type": "clips",
+      "clips": [
+        {
+          "media": {
+            "strong_id__": "3838197568999826383_787132",
+            "id": "3838197568999826383_787132",
+            "fbid": 18411939301121762,
+            "pk": 3838197568999826383,
+            "subtype_name_for_REST__": "XDTClipsMedia",
+            "image_versions2": {
+              "additional_candidates": {
+                "first_frame": {
+                  "height": 1136,
+                  "url": "https://scontent-dfw6-1.cdninstagram.com/first-frame",
+                  "width": 640
+                }
+              },
+              "candidates": [
+                {
+                  "height": 1333,
+                  "scans_profile": "e35",
+                  "url": "https://scontent-dfw6-1.cdninstagram.com/...",
+                  "width": 750
+                }
+              ]
+            },
+            "media_type": 2,
+            "original_width": 1080,
+            "original_height": 1920,
+            "taken_at": 1771768875,
+            "product_type": "clips",
+            "reshare_count": 14036,
+            "like_count": 222423,
+            "caption": {
+              "strong_id__": "18411939355121762",
+              "created_at": 1771768878,
+              "pk": "18411939355121762",
+              "media_id": 3838197568999826383,
+              "user_id": 787132,
+              "text": "No matter the time of day, a butterfly is always a beautiful sight 🦋\n\n#IncredibleAnimalJourneys is streaming on @DisneyPlus.",
+              "user": {
+                "strong_id__": "787132",
+                "pk": 787132,
+                "pk_id": "787132",
+                "id": "787132",
+                "username": "natgeo",
+                "full_name": "National Geographic",
+                "is_private": false,
+                "is_verified": true
+              }
+            },
+            "comment_count": 573,
+            "play_count": 3314829,
+            "ig_play_count": 3314829,
+            "has_audio": true,
+            "video_duration": 11.156999588012695,
+            "video_versions": [
+              {
+                "bandwidth": 2590316,
+                "height": 1280,
+                "id": "1571633047283905v",
+                "type": 101,
+                "url": "https://scontent-dfw6-1.cdninstagram.com/...",
+                "url_expiration_timestamp_us": null,
+                "width": 720,
+                "fallback": null
+              }
+            ],
+            "user": {
+              "strong_id__": "787132",
+              "pk": 787132,
+              "pk_id": "787132",
+              "id": "787132",
+              "full_name": "National Geographic",
+              "is_private": false,
+              "is_verified": true,
+              "username": "natgeo"
+            },
+            "code": "DVEBFp2AKPP",
+            "like_and_view_counts_disabled": false
+          }
+        },
+        {
+          "media": {
+            "strong_id__": "3806000000000000777_46255311",
+            "id": "3806000000000000777_46255311",
+            "pk": 3806000000000000777,
+            "media_type": 2,
+            "taken_at": 1767915000,
+            "product_type": "clips",
+            "like_count": 98000,
+            "caption": null,
+            "comment_count": 1589,
+            "play_count": 5027379,
+            "ig_play_count": 2622851,
+            "fb_play_count": 2404528,
+            "has_audio": true,
+            "video_duration": 19.20199966430664,
+            "video_versions": [
+              {
+                "height": 1280,
+                "type": 101,
+                "url": "https://scontent-dfw5-1.cdninstagram.com/...",
+                "width": 720
+              }
+            ],
+            "user": {
+              "strong_id__": "46255311",
+              "pk": 46255311,
+              "pk_id": "46255311",
+              "id": "46255311",
+              "full_name": "Marc Bouldoukian",
+              "is_private": false,
+              "is_verified": true,
+              "username": "markian.b"
+            },
+            "code": "DTVUXEWkVbX",
+            "like_and_view_counts_disabled": false
+          }
+        }
+      ]
+    }
+  ],
+  "has_more": true,
+  "reels_max_id": "r:80d6f6da6d8246fda9ad58a8e8d3c6c7",
+  "page_index": 12,
+  "rank_token": "47d590f0-b44c-4428-952d-4e5422909af8",
+  "status": "ok"
+}

@@ -1,0 +1,60 @@
+{
+  "response": {
+    "items": [
+      {
+        "__typename": "XDTMediaDict",
+        "id": "3000000000000000001_10000000002",
+        "pk": "3000000000000000001",
+        "code": "SYN00000001",
+        "media_type": 2,
+        "product_type": "clips",
+        "taken_at": 1758227597,
+        "user": { "id": "10000000002", "username": "user_001" },
+        "caption": { "text": "Synthetic text 002" },
+        "like_count": 541980,
+        "comment_count": 641,
+        "play_count": 4694710,
+        "video_duration": 13.976,
+        "video_versions": [{ "url": "https://cdn.example.com/syn-001.mp4" }]
+      },
+      {
+        "__typename": "XDTMediaDict",
+        "id": "4000000000000000017_3000000018",
+        "pk": "4000000000000000017",
+        "code": "SYN00000003",
+        "media_type": 8,
+        "product_type": "carousel_container",
+        "taken_at": 1791722188,
+        "user": { "id": "3000000018", "username": "user_003" },
+        "caption": { "text": "Synthetic text 007" },
+        "like_count": 13162,
+        "comment_count": 258,
+        "carousel_media_count": 2,
+        "carousel_media": [
+          {
+            "id": "4000000000000000019_3000000018",
+            "carousel_parent_id": "4000000000000000017_3000000018",
+            "media_type": 1
+          }
+        ]
+      },
+      {
+        "__typename": "XDTMediaDict",
+        "id": "3000000000000000044_10000000009",
+        "pk": "3000000000000000044",
+        "code": "SYN00000004",
+        "media_type": 2,
+        "product_type": "clips",
+        "taken_at": 1760000000,
+        "user": { "id": "10000000009", "username": "user_009" },
+        "caption": null,
+        "like_count": 77,
+        "comment_count": 0,
+        "video_duration": 30.1,
+        "video_versions": [{ "url": "https://cdn.example.com/syn-004.mp4" }]
+      }
+    ],
+    "more_available": true
+  },
+  "next_page_id": "d922f322eb5bc04ac2f47cba753f7a5a415c2bf292d32e6004dc45437efbcfb6"
+}

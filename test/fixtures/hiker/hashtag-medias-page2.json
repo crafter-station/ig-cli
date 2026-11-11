@@ -1,0 +1,24 @@
+{
+  "response": {
+    "items": [
+      {
+        "__typename": "XDTMediaDict",
+        "id": "3000000000000000090_10000000012",
+        "pk": "3000000000000000090",
+        "code": "SYN00000090",
+        "media_type": 2,
+        "product_type": "clips",
+        "taken_at": 1761000000,
+        "user": { "id": "10000000012", "username": "user_012" },
+        "caption": { "text": "Synthetic text 090" },
+        "like_count": 5,
+        "comment_count": 1,
+        "play_count": 300,
+        "video_duration": 9,
+        "video_versions": [{ "url": "https://cdn.example.com/syn-090.mp4" }]
+      }
+    ],
+    "more_available": false
+  },
+  "next_page_id": null
+}

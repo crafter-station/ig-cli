@@ -1,0 +1,19 @@
+{
+  "pk": "5550001111",
+  "username": "quiet.account",
+  "full_name": "",
+  "is_private": true,
+  "profile_pic_url": "https://cdn.example.com/small.jpg",
+  "profile_pic_url_hd": "https://cdn.example.com/hd.jpg",
+  "is_verified": null,
+  "media_count": 0,
+  "follower_count": null,
+  "following_count": 312,
+  "biography": "",
+  "external_url": null,
+  "account_type": 1,
+  "is_business": false,
+  "business_category_name": null,
+  "category_name": "Artist",
+  "category": ""
+}

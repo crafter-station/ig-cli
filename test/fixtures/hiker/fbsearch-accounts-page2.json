@@ -1,0 +1,59 @@
+{
+  "num_results": 4,
+  "users": [
+    {
+      "strong_id__": "23947096",
+      "pk": 23947096,
+      "pk_id": "23947096",
+      "id": "23947096",
+      "full_name": "National Geographic Travel",
+      "is_private": false,
+      "is_verified": true,
+      "username": "natgeotravel",
+      "social_context": "45.5M followers",
+      "search_social_context": "45.5M followers",
+      "search_social_context_snippet_type": "typeahead_follow_count"
+    },
+    {
+      "strong_id__": "900000001",
+      "pk": 900000001,
+      "pk_id": "900000001",
+      "id": "900000001",
+      "full_name": "",
+      "is_private": true,
+      "is_verified": false,
+      "username": "natgeo.fan.private",
+      "social_context": "Followed by someone",
+      "search_social_context": "Followed by someone",
+      "search_social_context_snippet_type": "social_context"
+    },
+    {
+      "strong_id__": "900000002",
+      "pk": 900000002,
+      "pk_id": "900000002",
+      "id": "900000002",
+      "full_name": "Small Nat Geo Club",
+      "is_private": false,
+      "is_verified": false,
+      "username": "smallnatgeoclub",
+      "social_context": "1,234 followers",
+      "search_social_context": "1,234 followers",
+      "search_social_context_snippet_type": "typeahead_follow_count"
+    },
+    {
+      "strong_id__": "900000003",
+      "pk": 900000003,
+      "pk_id": "900000003",
+      "id": "900000003",
+      "full_name": "No Context",
+      "is_private": false,
+      "is_verified": false,
+      "username": "nocontext"
+    }
+  ],
+  "has_more": false,
+  "rank_token": "1775669239975|7baf974b58aa2b98707f1dca2bfcffb0fc215729c9f30f69f0efc9b895e165eb",
+  "clear_client_cache": false,
+  "page_token": "ffffffffffffffffffffffffffffffff",
+  "status": "ok"
+}
