@@ -1,0 +1,97 @@
+{
+ "data": {
+  "user": {
+   "pk": "3532778",
+   "aigm_account_label_info": {
+    "is_enabled": false,
+    "attribution_label_text": null,
+    "is_auto_detected": false,
+    "is_manually_enabled": false
+   },
+   "gating": null,
+   "fbid_v2": "17841400383340055",
+   "is_memorialized": false,
+   "is_private": false,
+   "has_story_archive": null,
+   "is_coppa_enforced": null,
+   "supervision_info": null,
+   "is_regulated_c18": false,
+   "regulated_news_in_locations": [],
+   "bio_links": [
+    {
+     "image_url": "",
+     "is_pinned": false,
+     "link_id": "17939232743616622",
+     "link_type": "external",
+     "lynx_url": "https://l.instagram.com/?u=https%3A%2F%2Flinktr.ee%2Fjamieoliver%3Futm_source%3Dig%26utm_medium%3Dsocial%26utm_content%3Dlink_in_bio%26fbclid%3DPAZXh0bgNhZW0CMTEAcGRvZgJzcnRjBmFwcF9pZA85MzY2MTk3NDMzOTI0NTkAAaep-9WuTSvLxezkO-TbzEzurWt7PRu7CW0d6J9l1AEUbndyd9dwPpiwLaHnvg_aem_1hq2kEJfeconxgE55YDgYQ&e=AUDLzVKTchHxVLk8VQod5LoFGlD18rXwAthsikfprYOH3b_8Ppn5hkoD8BEkxzVwpAVjYsDXlCWqEeqtjJeBD-lOviSm76UMz2LLz6",
+     "media_accent_color_hex": "",
+     "media_type": "none",
+     "title": "Get my recipes here",
+     "url": "https://linktr.ee/jamieoliver",
+     "creation_source": "NONE"
+    }
+   ],
+   "linked_fb_info": null,
+   "meta_verified_benefits_info": {
+    "active_meta_verified_benefits": []
+   },
+   "text_post_app_badge_label": "jamieoliver",
+   "show_text_post_app_badge": true,
+   "username": "jamieoliver",
+   "live_broadcast_visibility": null,
+   "live_broadcast_id": null,
+   "profile_pic_url": "https://instagram.flim38-1.fna.fbcdn.net/v/t51.82787-19/683817654_18594330817012779_5403594102602705980_n.jpg",
+   "hd_profile_pic_url_info": {
+    "url": "https://instagram.flim38-1.fna.fbcdn.net/v/t51.82787-19/683817654_18594330817012779_5403594102602705980_n.jpg"
+   },
+   "is_unpublished": false,
+   "latest_reel_media": 1794401208,
+   "has_profile_pic": null,
+   "profile_pic_genai_tool_info": [],
+   "biography": "Chef & Dad\nOrder my new 20 Minute Meals cookbook now ⏰\nFor loadsa recipes & more click below 👇",
+   "full_name": "Jamie Oliver",
+   "is_verified": true,
+   "show_account_transparency_details": true,
+   "account_type": 3,
+   "follower_count": 10570949,
+   "address_street": "",
+   "city_name": "",
+   "is_business": false,
+   "zip": "",
+   "biography_with_entities": {
+    "entities": []
+   },
+   "category": "Creador digital",
+   "should_show_category": true,
+   "is_ring_creator": false,
+   "show_ring_award": false,
+   "ring_creator_metadata": {
+    "profile_background_color": null,
+    "profile_background_secondary_color": null
+   },
+   "account_badges": [],
+   "ai_agent_type": null,
+   "external_lynx_url": "https://l.instagram.com/?u=https%3A%2F%2Flinktr.ee%2Fjamieoliver%3Futm_source%3Dig%26utm_medium%3Dsocial%26utm_content%3Dlink_in_bio%26fbclid%3DPAZXh0bgNhZW0CMTEAcGRvZgJzcnRjBmFwcF9pZA85MzY2MTk3NDMzOTI0NTkAAaep-9WuTSvLxezkO-TbzEzurWt7PRu7CW0d6J9l1AEUbndyd9dwPpiwLaHnvg_aem_1hq2kEJfeconxgE55YDgYQ&e=AUDKTvXaKGOR-Ks47m8CZgUztuX67ckOxObyf1U02SJ4N6oWLDO0ZRnuKSAfQoryO5CBws1mNmv1oUbtFixGxpvM_WcOC8VmZHOJHZ",
+   "external_url": "https://linktr.ee/jamieoliver",
+   "pronouns": [],
+   "transparency_label": null,
+   "transparency_product": null,
+   "hide_creator_marketplace_badge": false,
+   "id": "3532778",
+   "has_chaining": true,
+   "remove_message_entrypoint": false,
+   "is_embeds_disabled": false,
+   "is_cannes": false,
+   "is_professional_account": null,
+   "following_count": 4385,
+   "media_count": 11681,
+   "has_restyle_presets": false,
+   "total_clips_count": 1,
+   "has_visible_media_notes": true,
+   "short_drama_creator": null,
+   "has_longform_media": false,
+   "latest_besties_reel_media": 0,
+   "reel_media_seen_timestamp": null
+  }
+ }
+}

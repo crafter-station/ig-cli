@@ -1,0 +1,382 @@
+{
+ "data": {
+  "fetch__XDTUserDict": {
+   "clips_connection": {
+    "edges": [
+     {
+      "node": {
+       "media": {
+        "pk": "3485895473040538296",
+        "id": "3485895473040538296_3532778",
+        "code": "DBgY3ayuTq4",
+        "media_overlay_info": null,
+        "carousel_media": null,
+        "boosted_status": null,
+        "boost_unavailable_identifier": null,
+        "boost_unavailable_reason": null,
+        "user": {
+         "pk": "3532778",
+         "id": "3532778",
+         "aigm_account_label_info": {
+          "attribution_label_text": null,
+          "is_auto_detected": false,
+          "is_enabled": false,
+          "is_manually_enabled": false
+         },
+         "username": "jamieoliver",
+         "full_name": "Jamie Oliver",
+         "profile_pic_url": "https://instagram.flim38-1.fna.fbcdn.net/v/t51.82787-19/683817654_18594330817012779_5403594102602705980_n.jpg",
+         "is_verified": true,
+         "is_embeds_disabled": false,
+         "is_private": false,
+         "is_unpublished": false,
+         "__typename": "XDTUserDict",
+         "show_account_transparency_details": true
+        },
+        "product_type": "clips",
+        "play_count": 782504,
+        "view_count": null,
+        "like_and_view_counts_disabled": false,
+        "comment_count": 203,
+        "like_count": 14681,
+        "audience": null,
+        "clips_tab_pinned_user_ids": [
+         "3532778"
+        ],
+        "media_type": 2,
+        "image_versions2": {
+         "candidates": [
+          {
+           "height": 2016,
+           "url": "https://instagram.flim38-1.fna.fbcdn.net/v/t51.71878-15/503060909_1313369046879718_5507169609806791922_n.jpg",
+           "width": 1134
+          }
+         ]
+        },
+        "preview": null,
+        "original_height": 1920,
+        "original_width": 1080,
+        "ai_interactive_embodiment_attachment_style_info": null,
+        "is_fb_only": null,
+        "is_internal_only": null,
+        "linked_media_playlist_data": null,
+        "can_viewer_reshare": true,
+        "ig_media_sharing_disabled": false,
+        "is_active_trial": false,
+        "is_in_profile_grid": false,
+        "is_short_drama": false,
+        "profile_grid_control_enabled": false,
+        "visibility": null,
+        "comments_disabled": null,
+        "feed_demotion_control": null,
+        "feed_recs_demotion_control": null,
+        "ai_label_info": null,
+        "inventory_source": null,
+        "longform_clip_metadata": null
+       },
+       "__typename": "XDTClipsItemDict"
+      },
+      "cursor": null
+     },
+     {
+      "node": {
+       "media": {
+        "pk": "4027454424454836023",
+        "id": "4027454424454836023_3532778",
+        "code": "DfkZHXutK83",
+        "media_overlay_info": null,
+        "carousel_media": null,
+        "boosted_status": null,
+        "boost_unavailable_identifier": null,
+        "boost_unavailable_reason": null,
+        "user": {
+         "pk": "3532778",
+         "id": "3532778",
+         "aigm_account_label_info": {
+          "attribution_label_text": null,
+          "is_auto_detected": false,
+          "is_enabled": false,
+          "is_manually_enabled": false
+         },
+         "username": "jamieoliver",
+         "full_name": "Jamie Oliver",
+         "profile_pic_url": "https://instagram.flim38-1.fna.fbcdn.net/v/t51.82787-19/683817654_18594330817012779_5403594102602705980_n.jpg",
+         "is_verified": true,
+         "is_embeds_disabled": false,
+         "is_private": false,
+         "is_unpublished": false,
+         "__typename": "XDTUserDict",
+         "show_account_transparency_details": true
+        },
+        "product_type": "clips",
+        "play_count": 445852,
+        "view_count": null,
+        "like_and_view_counts_disabled": false,
+        "comment_count": 165,
+        "like_count": 14091,
+        "audience": null,
+        "clips_tab_pinned_user_ids": [],
+        "media_type": 2,
+        "image_versions2": {
+         "candidates": [
+          {
+           "height": 1136,
+           "url": "https://instagram.flim38-1.fna.fbcdn.net/v/t51.71878-15/899691331_1452674850331663_5220933361271033464_n.jpg",
+           "width": 640
+          }
+         ]
+        },
+        "preview": null,
+        "original_height": 1920,
+        "original_width": 1080,
+        "ai_interactive_embodiment_attachment_style_info": null,
+        "is_fb_only": null,
+        "is_internal_only": null,
+        "linked_media_playlist_data": null,
+        "can_viewer_reshare": true,
+        "ig_media_sharing_disabled": false,
+        "is_active_trial": false,
+        "is_in_profile_grid": false,
+        "is_short_drama": false,
+        "profile_grid_control_enabled": false,
+        "visibility": null,
+        "comments_disabled": null,
+        "feed_demotion_control": null,
+        "feed_recs_demotion_control": null,
+        "ai_label_info": null,
+        "inventory_source": null,
+        "longform_clip_metadata": null
+       },
+       "__typename": "XDTClipsItemDict"
+      },
+      "cursor": null
+     },
+     {
+      "node": {
+       "media": {
+        "pk": "4026641251917986362",
+        "id": "4026641251917986362_3532778",
+        "code": "DfhgOJygXo6",
+        "media_overlay_info": null,
+        "carousel_media": null,
+        "boosted_status": null,
+        "boost_unavailable_identifier": null,
+        "boost_unavailable_reason": null,
+        "user": {
+         "pk": "3532778",
+         "id": "3532778",
+         "aigm_account_label_info": {
+          "attribution_label_text": null,
+          "is_auto_detected": false,
+          "is_enabled": false,
+          "is_manually_enabled": false
+         },
+         "username": "jamieoliver",
+         "full_name": "Jamie Oliver",
+         "profile_pic_url": "https://instagram.flim38-1.fna.fbcdn.net/v/t51.82787-19/683817654_18594330817012779_5403594102602705980_n.jpg",
+         "is_verified": true,
+         "is_embeds_disabled": false,
+         "is_private": false,
+         "is_unpublished": false,
+         "__typename": "XDTUserDict",
+         "show_account_transparency_details": true
+        },
+        "product_type": "clips",
+        "play_count": 243327,
+        "view_count": null,
+        "like_and_view_counts_disabled": false,
+        "comment_count": 74,
+        "like_count": 5156,
+        "audience": null,
+        "clips_tab_pinned_user_ids": [],
+        "media_type": 2,
+        "image_versions2": {
+         "candidates": [
+          {
+           "height": 1920,
+           "url": "https://instagram.flim38-1.fna.fbcdn.net/v/t51.82787-15/893513152_18660629194012779_5440717286584238742_n.jpg",
+           "width": 1080
+          }
+         ]
+        },
+        "preview": null,
+        "original_height": 1920,
+        "original_width": 1080,
+        "ai_interactive_embodiment_attachment_style_info": null,
+        "is_fb_only": null,
+        "is_internal_only": null,
+        "linked_media_playlist_data": null,
+        "can_viewer_reshare": true,
+        "ig_media_sharing_disabled": false,
+        "is_active_trial": false,
+        "is_in_profile_grid": false,
+        "is_short_drama": false,
+        "profile_grid_control_enabled": false,
+        "visibility": null,
+        "comments_disabled": null,
+        "feed_demotion_control": null,
+        "feed_recs_demotion_control": null,
+        "ai_label_info": null,
+        "inventory_source": null,
+        "longform_clip_metadata": null
+       },
+       "__typename": "XDTClipsItemDict"
+      },
+      "cursor": null
+     },
+     {
+      "node": {
+       "media": {
+        "pk": "4023649477273164151",
+        "id": "4023649477273164151_3532778",
+        "code": "DfW3-GhjZl3",
+        "media_overlay_info": null,
+        "carousel_media": null,
+        "boosted_status": null,
+        "boost_unavailable_identifier": null,
+        "boost_unavailable_reason": null,
+        "user": {
+         "pk": "3532778",
+         "id": "3532778",
+         "aigm_account_label_info": {
+          "attribution_label_text": null,
+          "is_auto_detected": false,
+          "is_enabled": false,
+          "is_manually_enabled": false
+         },
+         "username": "jamieoliver",
+         "full_name": "Jamie Oliver",
+         "profile_pic_url": "https://instagram.flim38-1.fna.fbcdn.net/v/t51.82787-19/683817654_18594330817012779_5403594102602705980_n.jpg",
+         "is_verified": true,
+         "is_embeds_disabled": false,
+         "is_private": false,
+         "is_unpublished": false,
+         "__typename": "XDTUserDict",
+         "show_account_transparency_details": true
+        },
+        "product_type": "clips",
+        "play_count": 115527,
+        "view_count": null,
+        "like_and_view_counts_disabled": false,
+        "comment_count": 30,
+        "like_count": 2003,
+        "audience": null,
+        "clips_tab_pinned_user_ids": [],
+        "media_type": 2,
+        "image_versions2": {
+         "candidates": [
+          {
+           "height": 1920,
+           "url": "https://instagram.flim38-1.fna.fbcdn.net/v/t51.82787-15/886527381_18659137318012779_3206925853220394817_n.jpg",
+           "width": 1080
+          }
+         ]
+        },
+        "preview": null,
+        "original_height": 1920,
+        "original_width": 1080,
+        "ai_interactive_embodiment_attachment_style_info": null,
+        "is_fb_only": null,
+        "is_internal_only": null,
+        "linked_media_playlist_data": null,
+        "can_viewer_reshare": true,
+        "ig_media_sharing_disabled": false,
+        "is_active_trial": false,
+        "is_in_profile_grid": false,
+        "is_short_drama": false,
+        "profile_grid_control_enabled": false,
+        "visibility": null,
+        "comments_disabled": null,
+        "feed_demotion_control": null,
+        "feed_recs_demotion_control": null,
+        "ai_label_info": null,
+        "inventory_source": null,
+        "longform_clip_metadata": null
+       },
+       "__typename": "XDTClipsItemDict"
+      },
+      "cursor": null
+     },
+     {
+      "node": {
+       "media": {
+        "pk": "4022287668337991418",
+        "id": "4022287668337991418_3532778",
+        "code": "DfSCVLHuF76",
+        "media_overlay_info": null,
+        "carousel_media": null,
+        "boosted_status": null,
+        "boost_unavailable_identifier": null,
+        "boost_unavailable_reason": null,
+        "user": {
+         "pk": "3532778",
+         "id": "3532778",
+         "aigm_account_label_info": {
+          "attribution_label_text": null,
+          "is_auto_detected": false,
+          "is_enabled": false,
+          "is_manually_enabled": false
+         },
+         "username": "jamieoliver",
+         "full_name": "Jamie Oliver",
+         "profile_pic_url": "https://instagram.flim38-1.fna.fbcdn.net/v/t51.82787-19/683817654_18594330817012779_5403594102602705980_n.jpg",
+         "is_verified": true,
+         "is_embeds_disabled": false,
+         "is_private": false,
+         "is_unpublished": false,
+         "__typename": "XDTUserDict",
+         "show_account_transparency_details": true
+        },
+        "product_type": "clips",
+        "play_count": 464859,
+        "view_count": null,
+        "like_and_view_counts_disabled": false,
+        "comment_count": 78,
+        "like_count": 8542,
+        "audience": null,
+        "clips_tab_pinned_user_ids": [],
+        "media_type": 2,
+        "image_versions2": {
+         "candidates": [
+          {
+           "height": 2096,
+           "url": "https://instagram.flim38-1.fna.fbcdn.net/v/t51.82787-15/880048975_18658433152012779_2862259023156842201_n.jpg",
+           "width": 1179
+          }
+         ]
+        },
+        "preview": null,
+        "original_height": 1920,
+        "original_width": 1080,
+        "ai_interactive_embodiment_attachment_style_info": null,
+        "is_fb_only": null,
+        "is_internal_only": null,
+        "linked_media_playlist_data": null,
+        "can_viewer_reshare": true,
+        "ig_media_sharing_disabled": false,
+        "is_active_trial": false,
+        "is_in_profile_grid": false,
+        "is_short_drama": false,
+        "profile_grid_control_enabled": false,
+        "visibility": null,
+        "comments_disabled": null,
+        "feed_demotion_control": null,
+        "feed_recs_demotion_control": null,
+        "ai_label_info": null,
+        "inventory_source": null,
+        "longform_clip_metadata": null
+       },
+       "__typename": "XDTClipsItemDict"
+      },
+      "cursor": null
+     }
+    ],
+    "page_info": {
+     "end_cursor": "AQHTQCy0wi4JonHM1vkkP6w6BxOpLfs5wGRgP8qLSXmRUhdeQQqtwiwg4z6J02a6-Q5WKbC3wI8Gk7EB-NvgK2kPhw",
+     "has_next_page": true
+    }
+   },
+   "id": "3532778"
+  }
+ }
+}

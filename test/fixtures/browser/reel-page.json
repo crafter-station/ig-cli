@@ -1,0 +1,185 @@
+{
+ "require": [
+  [
+   "ScheduledServerJS",
+   "handle",
+   null,
+   [
+    {
+     "__bbox": {
+      "require": [
+       [
+        "RelayPrefetchedStreamCache",
+        "next",
+        [],
+        [
+         "id",
+         {
+          "__bbox": {
+           "result": {
+            "data": {
+             "xdt_api__v1__media__shortcode__web_info": {
+              "items": [
+               {
+                "pk": "3485895473040538296",
+                "ad_id": null,
+                "injected": null,
+                "taken_at": 1729771201,
+                "video_versions": [
+                 {
+                  "width": 720,
+                  "height": 1280,
+                  "url": "https://instagram.flim38-1.fna.fbcdn.net/o1/v/t2/f2/m367/AQMAfbCfRGEngWNucDok5AJ8PzSJqQxi_Ilr1H_1Ekq0wCQ06uUKFYNCegdVEueg3XxIIqIvBNHl9viuUBytyexhTCJK-6gsuU3bG4k.mp4",
+                  "type": 101
+                 },
+                 {
+                  "width": 720,
+                  "height": 1280,
+                  "url": "https://instagram.flim38-1.fna.fbcdn.net/o1/v/t2/f2/m367/AQMAfbCfRGEngWNucDok5AJ8PzSJqQxi_Ilr1H_1Ekq0wCQ06uUKFYNCegdVEueg3XxIIqIvBNHl9viuUBytyexhTCJK-6gsuU3bG4k.mp4",
+                  "type": 102
+                 }
+                ],
+                "original_width": 1080,
+                "original_height": 1920,
+                "group": null,
+                "comments_disabled": null,
+                "like_and_view_counts_disabled": false,
+                "product_type": "clips",
+                "media_type": 2,
+                "carousel_media_count": null,
+                "carousel_media": null,
+                "ai_interactive_embodiment_attachment_style_info": null,
+                "link": null,
+                "comment_count": 203,
+                "view_count": null,
+                "like_count": 14681,
+                "fb_like_count": null,
+                "can_reshare": null,
+                "media_repost_count": 53,
+                "reshare_count": 212,
+                "share_count_disabled": false,
+                "can_see_insights_as_brand": false,
+                "is_fb_only": null,
+                "is_internal_only": null,
+                "horizon_attribution_info": null,
+                "audience": null,
+                "is_active_trial": false,
+                "is_short_drama": false,
+                "profile_grid_control_enabled": false,
+                "visibility": null,
+                "linked_media_playlist_data": null,
+                "follow_hashtag_info": null,
+                "link_text": null,
+                "__typename": "XDTMediaDict",
+                "fb_comment_count": null,
+                "caption_is_edited": false,
+                "associated_clip_medias": null,
+                "code": "DBgY3ayuTq4",
+                "id": "3485895473040538296_3532778",
+                "inventory_source": null,
+                "is_dash_eligible": 1,
+                "number_of_qualities": 8,
+                "image_versions2": {
+                 "candidates": [
+                  {
+                   "url": "https://instagram.flim38-1.fna.fbcdn.net/v/t51.71878-15/503060909_1313369046879718_5507169609806791922_n.jpg",
+                   "height": 2016,
+                   "width": 1134
+                  }
+                 ]
+                },
+                "is_paid_partnership": false,
+                "sponsor_tags": null,
+                "tappable_elements": [],
+                "user": {
+                 "pk": "3532778",
+                 "username": "jamieoliver",
+                 "full_name": "Jamie Oliver",
+                 "profile_pic_url": "https://instagram.flim38-1.fna.fbcdn.net/v/t51.82787-19/683817654_18594330817012779_5403594102602705980_n.jpg",
+                 "is_private": false,
+                 "is_embeds_disabled": false,
+                 "is_unpublished": false,
+                 "is_verified": true,
+                 "latest_reel_media": 1794401208,
+                 "id": "3532778",
+                 "__typename": "XDTUserDict",
+                 "show_account_transparency_details": true,
+                 "is_ai_user": null,
+                 "aigm_account_label_info": {
+                  "is_enabled": false,
+                  "attribution_label_text": null,
+                  "is_auto_detected": false,
+                  "is_manually_enabled": false
+                 },
+                 "live_broadcast_visibility": null,
+                 "live_broadcast_id": null,
+                 "hd_profile_pic_url_info": {
+                  "url": "https://instagram.flim38-1.fna.fbcdn.net/v/t51.82787-19/683817654_18594330817012779_5403594102602705980_n.jpg"
+                 },
+                 "transparency_product": null,
+                 "transparency_product_enabled": false,
+                 "transparency_label": null,
+                 "ai_agent_owner_username": null
+                },
+                "can_viewer_reshare": true,
+                "media_overlay_info": null,
+                "location": {
+                 "pk": 214630335,
+                 "lat": 51.515190871656,
+                 "lng": -0.14503508806229,
+                 "name": "John Lewis & Partners Oxford Street",
+                 "profile_pic_url": null,
+                 "__typename": "XDTLocationDict"
+                },
+                "has_audio": true,
+                "floating_context_items": [],
+                "clips_attribution_info": null,
+                "longform_clip_metadata": null,
+                "carousel_parent_id": null,
+                "display_uri": null,
+                "preview": null,
+                "accessibility_caption": null,
+                "story_cta": null,
+                "hidden_likes_string_variant": -1,
+                "crosspost_metadata": {
+                 "is_feedback_aggregated": null,
+                 "is_feed_feedback_aggregated": null
+                },
+                "enable_media_notes_production": true,
+                "caption": {
+                 "text": "This is BIG!!!….@jamieolivercookeryschool is expanding and we’re opening up a brand new flagship school in @johnlewis Oxford Street Central London in Spring 2025! Our biggest cookery school to date!! \nWe’re talking 2 classrooms with a combined space for up to 48 guests meaning our brilliant teaching chefs can bring our cookery classes to more people than ever before!! Classes are for all abilities",
+                 "pk": "18064445128740756",
+                 "has_translation": true,
+                 "created_at": 1729771203
+                },
+                "boosted_status": null,
+                "boost_unavailable_identifier": null,
+                "boost_unavailable_reason": null,
+                "ai_label_info": null,
+                "wearable_attribution_info": null,
+                "ig_media_sharing_disabled": false,
+                "is_in_profile_grid": false,
+                "feed_demotion_control": null,
+                "feed_recs_demotion_control": null,
+                "main_feed_carousel_starting_media_id": null,
+                "is_shared_from_basel": null,
+                "all_previous_submitters": null,
+                "media_attributions_data": [],
+                "longform_title": null,
+                "commenting_disabled_for_viewer": null
+               }
+              ]
+             }
+            }
+           }
+          }
+         }
+        ]
+       ]
+      ]
+     }
+    }
+   ]
+  ]
+ ]
+}
