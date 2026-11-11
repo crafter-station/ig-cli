@@ -56,10 +56,18 @@ export async function refreshCreator(
   const profile = await backend.getProfile(creator.username);
   let newVideos = 0;
   if (opts.reels > 0 && !profile.isPrivate) {
-    const reels = await backend.listReels(
+    const listed = await backend.listReels(
       { id: profile.id, username: profile.username },
       { limit: opts.reels },
     );
+    // A collaboration can name the other account as its author. Everything on
+    // this creator's reels list is filed under this creator, the only one
+    // certain to have a row for the video to reference.
+    const reels = listed.map((v) => ({
+      ...v,
+      creatorId: profile.id,
+      creatorUsername: profile.username,
+    }));
     // Store the profile first: videos reference the creator row.
     ctx.store.upsertCreator(profile);
     newVideos = ctx.store.upsertVideos(reels).inserted;

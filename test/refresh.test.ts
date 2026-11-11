@@ -77,6 +77,17 @@ describe("refreshCreator", () => {
     expect(env.backend.calls).toEqual(["getProfile:ana"]);
   });
 
+  it("files a collaboration reel under the refreshed creator", async () => {
+    const collab = video({ id: "12", creatorId: "999", creatorUsername: "someone_else" });
+    env = testEnv({ profiles: [ana], reels: { "1": [collab] } });
+    const outcome = await refreshCreator(env.ctx, env.backend, track(env, false), {
+      reels: 15,
+      force: false,
+    });
+    expect(outcome.newVideos).toBe(1);
+    expect(env.ctx.store.findVideo("12")).toMatchObject({ creatorId: "1", creatorUsername: "ana" });
+  });
+
   it("a block mid-refresh halts the backend and propagates", async () => {
     env = testEnv({ profiles: [ana], reels: { "1": reels } });
     env.backend.blockNext = "CHECKPOINT";
