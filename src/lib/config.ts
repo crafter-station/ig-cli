@@ -25,6 +25,12 @@ export const ConfigSchema = z.object({
    * than this many days, unless `--force`. Protects the logged-in account.
    */
   minRefreshDays: z.number().min(0).default(5),
+  /**
+   * Where the browser backend's Chrome window goes. `offscreen` keeps it out
+   * of the way; `visible` shows it, which helps when diagnosing a problem.
+   * `ig auth login` always shows it.
+   */
+  browserWindow: z.enum(["offscreen", "visible"]).default("offscreen"),
   limits: z
     .object({
       browser: BackendLimits.default({ dailyBudget: 400, delayMs: [2500, 6000] }),
@@ -76,6 +82,7 @@ export const SETTABLE_KEYS = [
   "backend",
   "mediaDir",
   "minRefreshDays",
+  "browserWindow",
   "limits.browser.dailyBudget",
   "limits.hiker.dailyBudget",
 ] as const;

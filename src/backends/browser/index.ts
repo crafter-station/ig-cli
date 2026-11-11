@@ -54,7 +54,12 @@ class BrowserBackend implements SessionBackend {
   private readonly related = new Map<string, CreatorCandidate[]>();
 
   constructor(private readonly deps: BackendFactoryDeps) {
-    this.session = new Session(deps.paths.browserProfile, deps.gate, deps.log);
+    this.session = new Session(
+      deps.paths.browserProfile,
+      deps.gate,
+      deps.log,
+      deps.config.browserWindow,
+    );
     // Beside the profile, not inside it: Chrome owns that directory.
     this.markerFile = join(deps.paths.state, "browser-session.json");
   }
@@ -93,7 +98,8 @@ class BrowserBackend implements SessionBackend {
         hint: "Ask the user to run `ig auth login browser` themselves and log in in the window that opens.",
       });
     }
-    const page = await this.session.open();
+    // Logging in needs the window in front of the person.
+    const page = await this.session.open({ visible: true });
     await page.goto("https://www.instagram.com/accounts/login/", {
       waitUntil: "domcontentloaded",
     });

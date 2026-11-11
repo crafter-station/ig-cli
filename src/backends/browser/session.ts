@@ -26,6 +26,18 @@ export const OPS = {
 
 const WATCHED = new Set<string>(Object.values(OPS));
 
+// Still a real, headed Chrome, only parked where it does not cover the user's
+// work. Chrome stops rendering windows it believes nobody can see, and a page
+// that is not rendering does not load more items on scroll, so that detection
+// is switched off for this window.
+const OFFSCREEN_ARGS = [
+  "--window-position=-32000,-32000",
+  "--window-size=1280,900",
+  "--disable-features=CalculateNativeWinOcclusion",
+  "--disable-backgrounding-occluded-windows",
+  "--disable-renderer-backgrounding",
+];
+
 export type Captured = Map<string, unknown[]>;
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -41,6 +53,7 @@ export class Session {
     private readonly profileDir: string,
     private readonly gate: Gate,
     private readonly log: (message: string) => void,
+    private readonly window: "offscreen" | "visible" = "offscreen",
   ) {}
 
   get hasProfile(): boolean {
@@ -48,8 +61,9 @@ export class Session {
   }
 
   /** Launches Chrome on first use. */
-  async open(): Promise<Page> {
+  async open(opts: { visible?: boolean } = {}): Promise<Page> {
     if (this.page) return this.page;
+    const offscreen = this.window === "offscreen" && !opts.visible;
     let chromium: typeof import("playwright-core").chromium;
     try {
       ({ chromium } = await import("playwright-core"));
@@ -68,7 +82,10 @@ export class Session {
         channel: "chrome",
         headless: false,
         viewport: null,
-        args: ["--disable-blink-features=AutomationControlled"],
+        args: [
+          "--disable-blink-features=AutomationControlled",
+          ...(offscreen ? OFFSCREEN_ARGS : []),
+        ],
       });
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause);

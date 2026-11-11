@@ -290,6 +290,7 @@ export function metaCommands(getAll: () => CommandDef[]) {
         `${renderRecord([
           ["backend", c.backend],
           ["minRefreshDays", String(c.minRefreshDays)],
+          ["browserWindow", c.browserWindow],
           ["limits.browser.dailyBudget", String(c.limits.browser.dailyBudget)],
           ["limits.hiker.dailyBudget", String(c.limits.hiker.dailyBudget)],
           ["mediaDir", data.paths.mediaDir],
