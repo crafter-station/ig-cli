@@ -62,7 +62,9 @@ export function loadConfig(paths: IgPaths): Config {
       hint: `Edit ${paths.configFile} or set values with \`ig config set <key> <value>\`.`,
     });
   }
-  return parsed.data;
+  // zod hands back the same default objects on every parse; a copy keeps one
+  // Context from seeing another's changes.
+  return structuredClone(parsed.data);
 }
 
 export function saveConfig(paths: IgPaths, config: Config): void {
