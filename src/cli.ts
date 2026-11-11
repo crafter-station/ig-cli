@@ -173,7 +173,15 @@ async function main(): Promise<void> {
       process.exitCode = EXIT.USER;
       return;
     }
-    const message = err.message.replace(/^error:\s*/i, "");
+    let message = err.message.replace(/^error:\s*/i, "");
+    if (err.code === "commander.help") {
+      // A group with no subcommand: name the choices instead of printing help.
+      const group = argv.find((arg) => !arg.startsWith("-")) ?? "";
+      const subs = commands
+        .filter((def) => def.id.startsWith(`${group}.`))
+        .map((def) => def.id.slice(group.length + 1));
+      message = `\`ig ${group}\` needs a subcommand: ${subs.join(", ")}.`;
+    }
     printError(
       new IgError("INVALID_INPUT", message, {
         hint: "Run `ig --help`, or `ig schema` for the machine-readable command list.",
