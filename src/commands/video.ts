@@ -204,7 +204,16 @@ function printVideos<T extends Video>(
       align: "right",
       cell: (r) => (r.takenAt ? ago(r.takenAt) : dim("–")),
     },
-    { header: "LEN", align: "right", cell: (r) => quiet(duration(r.durationSec)) },
+    // The browser backend never learns a duration; a column of dashes says nothing.
+    ...(rows.some((r) => r.durationSec !== null)
+      ? [
+          {
+            header: "LEN",
+            align: "right",
+            cell: (r) => quiet(duration(r.durationSec)),
+          } satisfies Column<T>,
+        ]
+      : []),
     ...(opts.extra ?? []),
     { header: "CAPTION", cell: (r) => oneLine(r.caption) || dim("–"), maxWidth: 44 },
     { header: "LINK", cell: (r) => muted(oneLine(r.url)) },
