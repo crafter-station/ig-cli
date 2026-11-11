@@ -1,6 +1,298 @@
+import { isAbsolute, relative } from "node:path";
 import { z } from "zod";
-import { RankedVideoSchema, SortKey, StoredVideoSchema, VideoSchema } from "../core/types.js";
-import { defineCommand, flags, notImplemented } from "../lib/command.js";
+import { bold, danger, dim, muted, ok, warn } from "../cligentic/platform/style.js";
+import type { Context } from "../context.js";
+import { type DownloadRequest, type DownloadSummary, downloadVideos } from "../core/download.js";
+import { MIN_VIDEOS_FOR_OUTLIER, rankVideos, sortVideos } from "../core/ranking.js";
+import { refreshCreator } from "../core/refresh.js";
+import {
+  normalizeUsername,
+  type RankedVideo,
+  RankedVideoSchema,
+  SortKey,
+  type StoredCreator,
+  StoredVideoSchema,
+  type Video,
+  VideoSchema,
+} from "../core/types.js";
+import { defineCommand, flags } from "../lib/command.js";
+import { IgError } from "../lib/errors.js";
+import { ago, bytes, compact, duration, multiple, parseSince, percent } from "../lib/format.js";
+import { type Meta, type NextStep, oneLine } from "../lib/output.js";
+import { type Column, printTable } from "../lib/table.js";
+
+// --- ranking shared by `video top` and `video download --top` ----------------
+
+export type TopSelection = {
+  niche?: string;
+  creator?: string;
+  sort: SortKey;
+  limit: number;
+  since?: string;
+  minPlays?: number;
+  perCreator?: number;
+};
+
+export type TopResult = {
+  videos: RankedVideo[];
+  /** Explains the ranking, so a null `outlierScore` does not look like a bug. */
+  meta: {
+    sort: SortKey;
+    videosConsidered: number;
+    creatorsConsidered: number;
+    creatorsBelowOutlierMinimum: number;
+    outlierMinimumVideos: number;
+  };
+  /** Where to get data when the scope holds no videos at all. */
+  emptySteps: NextStep[];
+};
+
+function sinceCutoff(since: string | undefined): number | null {
+  if (since === undefined) return null;
+  const iso = parseSince(since.trim());
+  if (!iso) {
+    throw new IgError("INVALID_INPUT", `--since is not a duration or a date: ${oneLine(since)}`, {
+      hint: "Use 12h, 30d, 2w, or a date such as 2026-10-01.",
+    });
+  }
+  return Date.parse(iso);
+}
+
+/**
+ * Ranks over every stored video of the creators in scope (the median needs
+ * the full set) and only then filters, sorts and cuts.
+ */
+export function selectTop(ctx: Context, sel: TopSelection): TopResult {
+  // Bad input fails before any work, including on an empty database.
+  const cutoff = sinceCutoff(sel.since);
+  if (sel.niche) ctx.store.getNiche(sel.niche);
+
+  let creators: StoredCreator[];
+  if (sel.creator) {
+    const one = ctx.store.getCreator(normalizeUsername(sel.creator));
+    creators = sel.niche && !one.niches.includes(sel.niche) ? [] : [one];
+  } else {
+    creators = ctx.store.listCreators({ niche: sel.niche });
+  }
+
+  const all =
+    creators.length === 0
+      ? []
+      : ctx.store.listVideos({
+          creatorId: sel.creator ? creators[0]?.id : undefined,
+          niche: sel.niche,
+        });
+  const ranked = rankVideos(all, new Map(creators.map((c) => [c.id, { followers: c.followers }])));
+
+  const withPlays = new Map<string, number>();
+  for (const v of all) {
+    if (v.plays !== null) withPlays.set(v.creatorId, (withPlays.get(v.creatorId) ?? 0) + 1);
+  }
+
+  let videos = ranked;
+  if (cutoff !== null) {
+    videos = videos.filter((v) => v.takenAt !== null && Date.parse(v.takenAt) >= cutoff);
+  }
+  if (sel.minPlays !== undefined) {
+    const min = sel.minPlays;
+    videos = videos.filter((v) => v.plays !== null && v.plays >= min);
+  }
+  videos = sortVideos(videos, sel.sort);
+  if (sel.perCreator !== undefined) {
+    const cap = sel.perCreator;
+    const taken = new Map<string, number>();
+    videos = videos.filter((v) => {
+      const n = (taken.get(v.creatorId) ?? 0) + 1;
+      taken.set(v.creatorId, n);
+      return n <= cap;
+    });
+  }
+
+  const emptySteps: NextStep[] = [];
+  if (all.length === 0) {
+    if (sel.creator) {
+      emptySteps.push({
+        command: `ig creator get ${normalizeUsername(sel.creator)} --refresh`,
+        description: "fetch this creator's reels",
+      });
+    }
+    if (sel.niche || !sel.creator) {
+      const slug = sel.niche ?? ctx.store.listNiches()[0]?.slug ?? "<slug>";
+      emptySteps.push({
+        command: `ig niche refresh ${slug}`,
+        description: "fetch reels for every creator in the niche",
+      });
+    }
+    if (!sel.niche && !sel.creator) {
+      emptySteps.push({
+        command: "ig creator get <username> --refresh",
+        description: "fetch one tracked creator's reels",
+      });
+    }
+  }
+
+  return {
+    videos: videos.slice(0, sel.limit),
+    meta: {
+      sort: sel.sort,
+      videosConsidered: all.length,
+      creatorsConsidered: creators.length,
+      creatorsBelowOutlierMinimum: creators.filter(
+        (c) => (withPlays.get(c.id) ?? 0) < MIN_VIDEOS_FOR_OUTLIER,
+      ).length,
+      outlierMinimumVideos: MIN_VIDEOS_FOR_OUTLIER,
+    },
+    emptySteps,
+  };
+}
+
+/** The filter flags of a selection, as they would be typed. */
+function selectionFlags(sel: Omit<TopSelection, "limit">): string {
+  const parts: string[] = [];
+  if (sel.niche) parts.push(`--niche ${sel.niche}`);
+  if (sel.creator) parts.push(`--creator ${normalizeUsername(sel.creator)}`);
+  if (sel.sort !== "outlier") parts.push(`--sort ${sel.sort}`);
+  if (sel.since) parts.push(`--since ${sel.since.trim()}`);
+  if (sel.perCreator !== undefined) parts.push(`--per-creator ${sel.perCreator}`);
+  return parts.length ? ` ${parts.join(" ")}` : "";
+}
+
+// --- human views -------------------------------------------------------------
+
+/** The value the eye should land on. A missing value stays quiet. */
+const emphasize = (text: string): string => (text === "–" ? dim(text) : bold(text));
+const quiet = (text: string): string => (text === "–" ? dim(text) : text);
+
+function metricColumn<T extends Video>(
+  header: string,
+  value: (row: T) => string,
+  sorted = false,
+): Column<T> {
+  return {
+    header: sorted ? `${header} ↓` : header,
+    align: "right",
+    cell: (row) => (sorted ? emphasize(value(row)) : quiet(value(row))),
+  };
+}
+
+/**
+ * A table of videos. When every row is the same creator the name is printed
+ * once as a heading instead of on every row. Captions are third-party text
+ * and always pass through `oneLine`.
+ */
+function printVideos<T extends Video>(
+  rows: T[],
+  opts: { metrics: Column<T>[]; extra?: Column<T>[]; empty: string; ageSorted?: boolean },
+): void {
+  const first = rows[0];
+  const single =
+    first !== undefined && rows.every((r) => r.creatorUsername === first.creatorUsername);
+  if (single) {
+    const noun = rows.length === 1 ? "reel" : "reels";
+    process.stdout.write(
+      `${bold(`@${oneLine(first.creatorUsername)}`)} ${muted(`· ${rows.length} ${noun}`)}\n`,
+    );
+  }
+  const columns: Column<T>[] = [
+    { header: "#", align: "right", cell: (_row, i) => muted(String(i + 1)) },
+    ...(single
+      ? []
+      : [{ header: "CREATOR", cell: (r: T) => oneLine(r.creatorUsername), maxWidth: 24 }]),
+    ...opts.metrics,
+    {
+      header: opts.ageSorted ? "AGE ↓" : "AGE",
+      align: "right",
+      cell: (r) => (r.takenAt ? ago(r.takenAt) : dim("–")),
+    },
+    { header: "LEN", align: "right", cell: (r) => quiet(duration(r.durationSec)) },
+    ...(opts.extra ?? []),
+    { header: "CAPTION", cell: (r) => oneLine(r.caption) || dim("–"), maxWidth: 44 },
+    { header: "LINK", cell: (r) => muted(oneLine(r.url)) },
+  ];
+  printTable(rows, columns, opts.empty);
+}
+
+function storedMetrics<T extends Video>(): Column<T>[] {
+  return [
+    metricColumn("PLAYS", (r) => compact(r.plays)),
+    metricColumn("LIKES", (r) => compact(r.likes)),
+    metricColumn("COMMENTS", (r) => compact(r.comments)),
+  ];
+}
+
+function rankedMetrics(sort: SortKey): Column<RankedVideo>[] {
+  const plays = (sorted = false) =>
+    metricColumn<RankedVideo>("PLAYS", (r) => compact(r.plays), sorted);
+  const outlier = (sorted = false) =>
+    metricColumn<RankedVideo>("OUTLIER", (r) => multiple(r.outlierScore), sorted);
+  switch (sort) {
+    case "outlier":
+      return [outlier(true), plays()];
+    case "plays":
+      return [plays(true), outlier()];
+    case "engagement":
+      return [metricColumn("ENGAGEMENT", (r) => percent(r.engagementRate), true), plays()];
+    case "likes":
+      return [metricColumn("LIKES", (r) => compact(r.likes), true), plays()];
+    case "comments":
+      return [metricColumn("COMMENTS", (r) => compact(r.comments), true), plays()];
+    case "recent":
+      return [plays(), outlier()];
+  }
+}
+
+function printDownload(data: DownloadSummary): void {
+  if (data.items.length === 0) {
+    process.stderr.write(`${muted("Nothing to download.")}\n`);
+    return;
+  }
+  const label = {
+    downloaded: ok("downloaded"),
+    skipped: muted("skipped"),
+    failed: danger("failed"),
+    "would-download": warn("would download"),
+  };
+  printTable(
+    data.items,
+    [
+      { header: "", cell: (i) => label[i.status] },
+      {
+        header: "VIDEO",
+        cell: (i) => `${oneLine(i.creatorUsername) || "?"}/${oneLine(i.shortcode)}`,
+        maxWidth: 40,
+      },
+      {
+        header: "SIZE",
+        align: "right",
+        cell: (i) => (i.bytes === null ? dim("–") : bytes(i.bytes)),
+      },
+      {
+        header: "DETAIL",
+        cell: (i) =>
+          i.status === "failed" || i.path === null
+            ? oneLine(i.reason) || dim("–")
+            : inside(data.dir, i.path),
+      },
+    ],
+    "Nothing to download.",
+  );
+  const planned = data.items.filter((i) => i.status === "would-download").length;
+  const counts = [
+    planned > 0 ? `${planned} would download` : `${data.downloaded} downloaded`,
+    `${data.skipped} skipped`,
+    data.failed > 0 ? danger(`${data.failed} failed`) : "0 failed",
+  ].join(", ");
+  const size = data.downloaded > 0 ? ` ${muted("·")} ${bytes(data.bytes)}` : "";
+  process.stdout.write(`\n${counts}${size} ${muted("·")} ${data.dir}\n`);
+}
+
+/** The directory is printed once in the total; rows show the path below it. */
+function inside(dir: string, path: string): string {
+  const rel = relative(dir, path);
+  return rel === "" || rel.startsWith("..") || isAbsolute(rel) ? path : rel;
+}
+
+// --- commands ----------------------------------------------------------------
 
 const list = defineCommand({
   id: "video.list",
@@ -23,7 +315,51 @@ const list = defineCommand({
       .option("--backend <name>", "browser | hiker")
       .option("--force", "refresh even if refreshed recently"),
   args: ([creator]) => ({ creator }),
-  handler: async () => notImplemented("video.list"),
+  handler: async (input, ctx) => {
+    if (input.force && !input.refresh) {
+      throw new IgError("INVALID_INPUT", "--force only applies together with --refresh.", {
+        hint: `Run \`ig video list ${normalizeUsername(input.creator)} --refresh --force\`.`,
+      });
+    }
+    const creator = ctx.store.getCreator(normalizeUsername(input.creator));
+    const meta: Meta = {};
+    if (input.refresh) {
+      const backend = await ctx.backend(input.backend);
+      const outcome = await refreshCreator(ctx, backend, creator, {
+        reels: Math.max(input.limit, 15),
+        force: input.force,
+      });
+      meta.refresh = {
+        status: outcome.status,
+        reason: outcome.reason,
+        newVideos: outcome.newVideos,
+        totalVideos: outcome.totalVideos,
+      };
+      if (outcome.status === "skipped") ctx.log(`Not refreshed: ${outcome.reason}`);
+    }
+    const videos = ctx.store.listVideos({ creatorId: creator.id, limit: input.limit });
+    const nextSteps: NextStep[] =
+      videos.length === 0
+        ? [
+            {
+              command: `ig video list ${creator.username} --refresh`,
+              description: "fetch this creator's latest reels",
+            },
+          ]
+        : [
+            {
+              command: `ig video top --creator ${creator.username}`,
+              description: "what performed best for this creator",
+            },
+          ];
+    return { data: videos, meta, nextSteps };
+  },
+  human: (data) =>
+    printVideos(data, {
+      metrics: storedMetrics(),
+      ageSorted: true,
+      empty: "No reels stored for this creator. Add --refresh to fetch them.",
+    }),
 });
 
 const top = defineCommand({
@@ -59,7 +395,39 @@ const top = defineCommand({
       .option("--since <when>", "only videos newer than 30d, 12h, 2w or a date")
       .option("--min-plays <n>", "drop videos below this")
       .option("--per-creator <n>", "at most this many videos per creator"),
-  handler: async () => notImplemented("video.top"),
+  handler: async (input, ctx) => {
+    const result = selectTop(ctx, input);
+    const nextSteps: NextStep[] =
+      result.videos.length > 0
+        ? [
+            {
+              command: `ig video download --top ${Math.min(result.videos.length, 5)}${selectionFlags(input)}`,
+              description: "download the best of these",
+            },
+          ]
+        : result.emptySteps;
+    return { data: result.videos, meta: result.meta, nextSteps };
+  },
+  human: (data, _ctx, meta) => {
+    const sort = SortKey.catch("outlier").parse(meta.sort);
+    const considered = Number(meta.videosConsidered ?? 0);
+    printVideos(data, {
+      metrics: rankedMetrics(sort),
+      ageSorted: sort === "recent",
+      empty:
+        considered === 0
+          ? "No videos stored in this scope yet."
+          : `None of the ${considered} stored videos match these filters.`,
+    });
+    const below = Number(meta.creatorsBelowOutlierMinimum ?? 0);
+    if (data.length > 0 && below > 0 && (sort === "outlier" || sort === "plays")) {
+      process.stderr.write(
+        `${muted(
+          `${below} of ${meta.creatorsConsidered} creators have fewer than ${MIN_VIDEOS_FOR_OUTLIER} videos with play counts, so they get no outlier score.`,
+        )}\n`,
+      );
+    }
+  },
 });
 
 const search = defineCommand({
@@ -82,7 +450,30 @@ const search = defineCommand({
       .option("--niche <slug>", "only this niche")
       .option("--limit <n>", "maximum results (default 20)"),
   args: ([query]) => ({ query }),
-  handler: async () => notImplemented("video.search"),
+  handler: async (input, ctx) => {
+    if (!/[\p{L}\p{N}_]/u.test(input.query)) {
+      throw new IgError("INVALID_INPUT", "The query has no searchable word.", {
+        hint: 'Search for words from a caption, e.g. `ig video search "pasta receta"`.',
+      });
+    }
+    const videos = ctx.store.searchVideos(input.query, { niche: input.niche, limit: input.limit });
+    const words = (input.query.match(/[\p{L}\p{N}_]+/gu) ?? []).join(" ");
+    const nextSteps: NextStep[] =
+      videos.length === 0
+        ? [
+            {
+              command: `ig video discover "${words}"`,
+              description: "search Instagram instead of the local database",
+            },
+          ]
+        : [];
+    return { data: videos, nextSteps };
+  },
+  human: (data) =>
+    printVideos(data, {
+      metrics: storedMetrics(),
+      empty: "No stored caption matches every word of that query.",
+    }),
 });
 
 const discover = defineCommand({
@@ -111,7 +502,60 @@ const discover = defineCommand({
       .option("--limit <n>", "maximum results (default 30)")
       .option("--backend <name>", "browser | hiker"),
   args: ([query]) => ({ query }),
-  handler: async () => notImplemented("video.discover"),
+  handler: async (input, ctx) => {
+    const term = input.hashtag ? input.query.trim().replace(/^#+/, "") : input.query.trim();
+    if (term === "") {
+      throw new IgError("INVALID_INPUT", "The query is empty.", {
+        hint: "Give a keyword, or a tag with --hashtag: `ig video discover recetas --hashtag`.",
+      });
+    }
+    const backend = await ctx.backend(input.backend);
+    const found = input.hashtag
+      ? await backend.hashtagReels(term, { limit: input.limit })
+      : await backend.searchReels(term, { limit: input.limit });
+    const tracked = new Map<string, boolean>();
+    const data = found.slice(0, input.limit).map((v) => {
+      if (!tracked.has(v.creatorId)) {
+        tracked.set(v.creatorId, ctx.store.findCreator(v.creatorId) !== null);
+      }
+      return { ...v, creatorTracked: tracked.get(v.creatorId) === true };
+    });
+    // Usernames come from upstream; only well-formed ones go into a command.
+    const untracked = [
+      ...new Set(data.filter((v) => !v.creatorTracked).map((v) => v.creatorUsername)),
+    ].filter((u) => /^[A-Za-z0-9._]+$/.test(u));
+    const nextSteps: NextStep[] = [];
+    if (untracked.length > 0) {
+      nextSteps.push({
+        command: `ig creator add ${untracked.slice(0, 3).join(" ")}`,
+        description:
+          untracked.length > 3
+            ? `track authors found here (${untracked.length} are not tracked yet)`
+            : "track the authors found here",
+      });
+    }
+    const firstReel = data.find((v) => /^[A-Za-z0-9_-]+$/.test(v.shortcode));
+    if (firstReel) {
+      nextSteps.push({
+        command: `ig video download ${firstReel.shortcode}`,
+        description: "fetch one of these reels",
+      });
+    }
+    return {
+      data,
+      meta: { source: input.hashtag ? `hashtag:${term}` : `reels:${term}` },
+      nextSteps,
+    };
+  },
+  human: (data) =>
+    printVideos(data, {
+      metrics: [
+        metricColumn("PLAYS", (r) => compact(r.plays)),
+        metricColumn("LIKES", (r) => compact(r.likes)),
+      ],
+      extra: [{ header: "TRACKED", cell: (r) => (r.creatorTracked ? ok("yes") : dim("no")) }],
+      empty: "Instagram returned no reels for that query.",
+    }),
 });
 
 export const DownloadItemSchema = z.object({
@@ -172,7 +616,84 @@ const download = defineCommand({
       .option("--force", "download again even if the file exists")
       .option("--dry-run", "list what would be downloaded"),
   args: ([targets]) => ({ targets }),
-  handler: async () => notImplemented("video.download"),
+  handler: async (input, ctx) => {
+    const example =
+      "Run `ig video download <shortcode-or-url>...` or `ig video download --top 10 --niche <slug>`.";
+    if (input.targets.length > 0 && input.top !== undefined) {
+      throw new IgError("INVALID_INPUT", "Give either targets or --top, not both.", {
+        hint: example,
+      });
+    }
+    if (input.targets.length === 0 && input.top === undefined) {
+      throw new IgError("INVALID_INPUT", "Nothing to download: give targets or --top <n>.", {
+        hint: example,
+      });
+    }
+    if (input.top === undefined) {
+      const stray = [
+        input.niche !== undefined && "--niche",
+        input.creator !== undefined && "--creator",
+        input.since !== undefined && "--since",
+        input.perCreator !== undefined && "--per-creator",
+      ].filter((f) => f !== false);
+      if (stray.length > 0) {
+        throw new IgError("INVALID_INPUT", `${stray.join(", ")} only applies with --top.`, {
+          hint: example,
+        });
+      }
+    }
+
+    const dir = input.out ?? ctx.mediaDir;
+    let targets: DownloadRequest["targets"];
+    let emptySteps: NextStep[] = [];
+    if (input.top !== undefined) {
+      const selection = selectTop(ctx, { ...input, limit: input.top });
+      targets = selection.videos;
+      emptySteps = selection.emptySteps;
+    } else {
+      targets = [...new Set(input.targets.map((t) => t.trim()).filter(Boolean))];
+    }
+
+    const summary = await downloadVideos(
+      { store: ctx.store, log: ctx.log, backend: () => ctx.backend(input.backend) },
+      { targets, dir, force: input.force, dryRun: input.dryRun },
+    );
+
+    // Every item failing is a failure, not a success envelope with bad news inside.
+    if (summary.items.length > 0 && summary.failed === summary.items.length) {
+      const first = summary.items[0];
+      throw new IgError(
+        "DOWNLOAD_FAILED",
+        summary.failed === 1
+          ? `Could not download ${first?.shortcode}: ${first?.reason}`
+          : `None of the ${summary.failed} videos could be downloaded. First reason: ${first?.reason}`,
+        {
+          hint: "Check `ig auth status` and `ig doctor`. The reason for each video is in details.items.",
+          details: { ...summary },
+        },
+      );
+    }
+
+    const nextSteps: NextStep[] = [...emptySteps];
+    if (input.dryRun && summary.items.some((i) => i.status === "would-download")) {
+      const what =
+        input.top !== undefined
+          ? `--top ${input.top}${selectionFlags(input)}`
+          : summary.items
+              .filter((i) => i.status === "would-download")
+              .map((i) => i.shortcode)
+              .join(" ");
+      nextSteps.push({ command: `ig video download ${what}`, description: "run it for real" });
+    }
+    if (summary.failed > 0) {
+      nextSteps.push({
+        command: "ig doctor",
+        description: "check the backend and the yt-dlp fallback",
+      });
+    }
+    return { data: summary, nextSteps };
+  },
+  human: (data) => printDownload(data),
 });
 
 export const videoCommands = [list, top, search, discover, download];
