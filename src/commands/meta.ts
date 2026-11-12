@@ -19,6 +19,7 @@ import {
 import { ERROR_CODES, EXIT, IgError, toIgError } from "../lib/errors.js";
 import { printTable, renderRecord } from "../lib/table.js";
 import { reportBackend } from "./auth.js";
+import { transcriptionChecks } from "./transcript.js";
 
 /** Bumped on any breaking change to the envelope or to a command's data shape. */
 export const SCHEMA_VERSION = "1";
@@ -229,13 +230,11 @@ export function metaCommands(getAll: () => CommandDef[]) {
         "Optional: measures duration and size of downloaded videos. Install ffmpeg from https://ffmpeg.org/download.html",
         false,
       );
-      add(
-        "ffmpeg",
-        hasCommand("ffmpeg"),
-        hasCommand("ffmpeg") ? "found on PATH" : "not found",
-        "Optional: used for media analysis. Install ffmpeg from https://ffmpeg.org/download.html",
-        false,
-      );
+
+      // Optional: transcription engines, and why one is not usable right now.
+      if (configOk) {
+        for (const c of transcriptionChecks(ctx)) add(c.name, c.ok, c.detail, c.hint, false);
+      }
 
       const healthy = checks.every((c) => c.ok || !c.required);
       const failing = checks.filter((c) => !c.ok && c.required && c.hint?.startsWith("ig "));
