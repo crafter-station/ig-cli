@@ -1472,6 +1472,7 @@ describe("niche movers", () => {
     });
     await expect(runMovers({ slug: "cocina", recent: "nope" })).rejects.toMatchObject({
       code: "INVALID_INPUT",
+      message: "--recent is not a duration or a past date.",
     });
     await expect(runMovers({ slug: "cocina", sort: "plays" })).rejects.toMatchObject({
       code: "INVALID_INPUT",

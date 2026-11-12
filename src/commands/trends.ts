@@ -6,7 +6,7 @@ import { z } from "zod";
 import { bold, dim, muted, ok, warn } from "../cligentic/platform/style.js";
 import type { Context } from "../context.js";
 import { median, rankVideos } from "../core/ranking.js";
-import { isSafeShortcode } from "../core/targets.js";
+import { findStoredVideo, isSafeShortcode } from "../core/targets.js";
 import {
   computeVelocities,
   creatorHistory,
@@ -21,7 +21,6 @@ import {
 } from "../core/trends.js";
 import {
   normalizeUsername,
-  parseShortcode,
   RankedVideoSchema,
   type StoredCreator,
   StoredCreatorSchema,
@@ -390,10 +389,9 @@ const videoHistoryCmd = defineCommand({
   args: ([video]) => ({ video }),
   handler: async (input, ctx) => {
     const windowMs = parseWindow(input.window);
-    const key = parseShortcode(input.video) ?? input.video.trim();
-    const video = ctx.store.findVideo(key);
+    const { video } = findStoredVideo(ctx.store, input.video);
     if (!video) {
-      throw new IgError("NOT_FOUND", `No stored video matches: ${oneLine(input.video)}`, {
+      throw new IgError("NOT_FOUND", `No stored video matches ${oneLine(input.video)}.`, {
         hint: "History exists only for stored videos. List them with `ig video list <creator>`.",
       });
     }
@@ -758,7 +756,7 @@ const movers = defineCommand({
   args: ([slug]) => ({ slug }),
   handler: async (input, ctx) => {
     const windowMs = parseWindow(input.window);
-    const recentCutoff = Date.now() - parseWindow(input.recent);
+    const recentCutoff = Date.now() - parseWindow(input.recent, Date.now(), "--recent");
     const niche = ctx.store.getNiche(input.slug);
     const { creators, videos } = velocitiesInScope(ctx, { niche: niche.slug }, windowMs);
     const profileSnapshots = ctx.store.listCreatorSnapshots({ niche: niche.slug });

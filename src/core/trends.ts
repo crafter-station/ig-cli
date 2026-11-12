@@ -35,13 +35,16 @@ export type CreatorSnapshot = {
   mediaCount: number | null;
 };
 
-/** `--window`: the syntax of `--since` (12h, 7d, 2w or a date), as milliseconds. */
-export function parseWindow(value: string, now = Date.now()): number {
+/**
+ * `--window`: the syntax of `--since` (12h, 7d, 2w or a date), as milliseconds.
+ * `flag` names the option in the error, for the commands that parse another one.
+ */
+export function parseWindow(value: string, now = Date.now(), flag = "--window"): number {
   // A bare number is a forgotten unit, not the year or month Date.parse makes of it.
   const iso = /^\d+$/.test(value.trim()) ? null : parseSince(value.trim(), now);
   const ms = iso === null ? Number.NaN : now - Date.parse(iso);
   if (!(ms >= MIN_SPAN_MS)) {
-    throw new IgError("INVALID_INPUT", "--window is not a duration or a past date.", {
+    throw new IgError("INVALID_INPUT", `${flag} is not a duration or a past date.`, {
       hint: `Use 12h, 7d, 2w, or a date such as 2026-10-01. The minimum is ${MIN_SPAN_HOURS}h.`,
     });
   }
