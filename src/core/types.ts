@@ -131,6 +131,29 @@ export function extractTags(caption: string | null): { hashtags: string[]; menti
   };
 }
 
+/** How fast a video gains plays. Computed from the metric snapshots each refresh stores. */
+export const VelocityFieldsSchema = z.object({
+  velocity: z
+    .number()
+    .nullable()
+    .describe(
+      "Plays per day, on the basis named by velocityBasis. Null when it cannot be measured",
+    ),
+  velocityBasis: z
+    .enum(["window", "lifetime"])
+    .nullable()
+    .describe(
+      "window: plays gained between two snapshots. lifetime: plays / age, the fallback with a single snapshot",
+    ),
+  velocityScore: z
+    .number()
+    .nullable()
+    .describe(
+      "velocity divided by the creator's median velocity. 3.0 means growing three times faster than their usual video. Null without enough data",
+    ),
+});
+export type VelocityFields = z.infer<typeof VelocityFieldsSchema>;
+
 export const RankedVideoSchema = StoredVideoSchema.extend({
   outlierScore: z
     .number()
@@ -144,6 +167,7 @@ export const RankedVideoSchema = StoredVideoSchema.extend({
     .describe("(likes + comments) / creator followers. Higher is better"),
   creatorFollowers: z.number().int().nullable(),
   creatorMedianPlays: z.number().nullable(),
+  ...VelocityFieldsSchema.shape,
 });
 export type RankedVideo = z.infer<typeof RankedVideoSchema>;
 
@@ -157,7 +181,15 @@ export const NicheSchema = z.object({
 });
 export type Niche = z.infer<typeof NicheSchema>;
 
-export const SORT_KEYS = ["outlier", "plays", "engagement", "likes", "comments", "recent"] as const;
+export const SORT_KEYS = [
+  "outlier",
+  "plays",
+  "engagement",
+  "likes",
+  "comments",
+  "recent",
+  "velocity",
+] as const;
 export const SortKey = z.enum(SORT_KEYS);
 export type SortKey = z.infer<typeof SortKey>;
 

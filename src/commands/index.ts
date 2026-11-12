@@ -7,6 +7,7 @@ import { metaCommands } from "./meta.js";
 import { nicheCommands } from "./niche.js";
 import { skillCommands } from "./skill.js";
 import { transcriptCommands } from "./transcript.js";
+import { trendsCommands } from "./trends.js";
 import { videoCommands } from "./video.js";
 
 /** Help text for each command group. */
@@ -27,6 +28,7 @@ export const commands: CommandDef[] = [
   ...(mediaCommands as CommandDef[]),
   ...(transcriptCommands as CommandDef[]),
   ...(analyzeCommands as CommandDef[]),
+  ...(trendsCommands as CommandDef[]),
   ...(skillCommands as CommandDef[]),
 ];
 commands.push(...(metaCommands(() => commands) as CommandDef[]));

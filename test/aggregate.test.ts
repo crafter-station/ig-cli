@@ -37,6 +37,9 @@ function ranked(over: Partial<RankedVideo>): RankedVideo {
     engagementRate: null,
     creatorFollowers: 1000,
     creatorMedianPlays: 100,
+    velocity: null,
+    velocityBasis: null,
+    velocityScore: null,
     ...over,
   };
 }
