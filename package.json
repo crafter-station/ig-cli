@@ -1,6 +1,6 @@
 {
   "name": "@jibaru/ig-cli",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Agent-first CLI for Instagram creator research: discover creators, track reel metrics, find top videos, download them.",
   "keywords": [
     "instagram",

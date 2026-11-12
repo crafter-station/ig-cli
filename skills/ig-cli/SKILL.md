@@ -210,7 +210,7 @@ Output of a real run: `transcribed`, `noSpeech` (stored with an empty transcript
 
 Failure modes:
 
-- No usable engine: `BACKEND_UNAVAILABLE` (exit 3). A named cloud engine without its key: `AUTH_REQUIRED` (exit 3). `ig doctor` lists each engine as `transcribe:<name>` with a hint. Missing ffmpeg is also `BACKEND_UNAVAILABLE` here.
+- No usable engine: `BACKEND_UNAVAILABLE` (exit 3). A named cloud engine without its key: `AUTH_REQUIRED` (exit 3). `ig doctor` lists each engine as `transcribe:<name>` with a hint. Missing ffmpeg is `UNSUPPORTED` (exit 2), as in `video analyze` and `video probe`.
 - ElevenLabs out of credits or rate limiting: `RATE_LIMITED` (exit 4). Stop and tell the user.
 - Every video failing: `TRANSCRIBE_FAILED` (exit 1), reasons in `error.details.items`.
 - The OpenAI engine has only been tested against mocked responses. If it fails with `UPSTREAM_CHANGED`, report it rather than retrying.
