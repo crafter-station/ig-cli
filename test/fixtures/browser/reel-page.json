@@ -166,7 +166,20 @@
                 "all_previous_submitters": null,
                 "media_attributions_data": [],
                 "longform_title": null,
-                "commenting_disabled_for_viewer": null
+                "commenting_disabled_for_viewer": null,
+                "clips_metadata": {
+                 "audio_type": "original_sounds",
+                 "music_info": null,
+                 "original_sound_info": {
+                  "original_audio_title": "Audio original",
+                  "audio_asset_id": "549374974344451",
+                  "ig_artist": {
+                   "username": "jamieoliver",
+                   "id": "3532778"
+                  },
+                  "is_explicit": false
+                 }
+                }
                }
               ]
              }

@@ -169,7 +169,20 @@
       "collab_follow_button_info": null,
       "creative_config": null,
       "link_text": null,
-      "__typename": "XDTMediaDict"
+      "__typename": "XDTMediaDict",
+      "clips_metadata": {
+       "audio_type": "original_sounds",
+       "music_info": null,
+       "original_sound_info": {
+        "original_audio_title": "Audio original",
+        "audio_asset_id": "27663640683265815",
+        "ig_artist": {
+         "username": "jamieoliver",
+         "id": "3532778"
+        },
+        "is_explicit": false
+       }
+      }
      },
      "cursor": null
     },
@@ -784,7 +797,20 @@
       "collab_follow_button_info": null,
       "creative_config": null,
       "link_text": null,
-      "__typename": "XDTMediaDict"
+      "__typename": "XDTMediaDict",
+      "clips_metadata": {
+       "audio_type": "original_sounds",
+       "music_info": null,
+       "original_sound_info": {
+        "original_audio_title": "Audio original",
+        "audio_asset_id": "28970531749254861",
+        "ig_artist": {
+         "username": "jamieoliver",
+         "id": "3532778"
+        },
+        "is_explicit": false
+       }
+      }
      },
      "cursor": null
     },
@@ -945,7 +971,20 @@
       "collab_follow_button_info": null,
       "creative_config": null,
       "link_text": null,
-      "__typename": "XDTMediaDict"
+      "__typename": "XDTMediaDict",
+      "clips_metadata": {
+       "audio_type": "original_sounds",
+       "music_info": null,
+       "original_sound_info": {
+        "original_audio_title": "Audio original",
+        "audio_asset_id": "29336045609358780",
+        "ig_artist": {
+         "username": "jamieoliver",
+         "id": "3532778"
+        },
+        "is_explicit": false
+       }
+      }
      },
      "cursor": null
     },
