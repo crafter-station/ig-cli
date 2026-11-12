@@ -563,6 +563,127 @@ export class Store {
       .run(localDay(), backend);
     return this.requestsToday(backend);
   }
+
+  // --- history --------------------------------------------------------------
+  // Read-only access to the metric snapshots every refresh records.
+
+  /** One video's snapshots, oldest first. */
+  videoSnapshots(
+    videoId: string,
+  ): { takenAt: string; plays: number | null; likes: number | null; comments: number | null }[] {
+    return this.listVideoSnapshots({ videoId }).get(videoId) ?? [];
+  }
+
+  /**
+   * Snapshots of every video in scope, keyed by video id, each list oldest
+   * first. No scope means the whole database.
+   */
+  listVideoSnapshots(
+    opts: { videoId?: string; creatorId?: string; niche?: string } = {},
+  ): Map<
+    string,
+    { takenAt: string; plays: number | null; likes: number | null; comments: number | null }[]
+  > {
+    const where: string[] = [];
+    const params: (string | number)[] = [];
+    if (opts.videoId) {
+      where.push("s.video_id = ?");
+      params.push(opts.videoId);
+    }
+    if (opts.creatorId) {
+      where.push("v.creator_id = ?");
+      params.push(opts.creatorId);
+    }
+    if (opts.niche) {
+      where.push("v.creator_id IN (SELECT creator_id FROM niche_creators WHERE niche_id = ?)");
+      params.push(this.nicheId(opts.niche));
+    }
+    const rows = this.db
+      .prepare(
+        `SELECT s.video_id, s.taken_at, s.plays, s.likes, s.comments
+         FROM video_snapshots s JOIN videos v ON v.id = s.video_id
+         ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
+         ORDER BY s.video_id, s.taken_at, s.id`,
+      )
+      .all(...params) as Row[];
+    const out = new Map<
+      string,
+      { takenAt: string; plays: number | null; likes: number | null; comments: number | null }[]
+    >();
+    for (const r of rows) {
+      const id = String(r.video_id);
+      const list = out.get(id) ?? [];
+      list.push({
+        takenAt: String(r.taken_at),
+        plays: num(r.plays),
+        likes: num(r.likes),
+        comments: num(r.comments),
+      });
+      out.set(id, list);
+    }
+    return out;
+  }
+
+  /** One creator's snapshots, oldest first. */
+  creatorSnapshots(creatorId: string): {
+    takenAt: string;
+    followers: number | null;
+    following: number | null;
+    mediaCount: number | null;
+  }[] {
+    return this.listCreatorSnapshots({ creatorId }).get(creatorId) ?? [];
+  }
+
+  /** Snapshots of every creator in scope, keyed by creator id, each list oldest first. */
+  listCreatorSnapshots(opts: { creatorId?: string; niche?: string } = {}): Map<
+    string,
+    {
+      takenAt: string;
+      followers: number | null;
+      following: number | null;
+      mediaCount: number | null;
+    }[]
+  > {
+    const where: string[] = [];
+    const params: (string | number)[] = [];
+    if (opts.creatorId) {
+      where.push("s.creator_id = ?");
+      params.push(opts.creatorId);
+    }
+    if (opts.niche) {
+      where.push("s.creator_id IN (SELECT creator_id FROM niche_creators WHERE niche_id = ?)");
+      params.push(this.nicheId(opts.niche));
+    }
+    const rows = this.db
+      .prepare(
+        `SELECT s.creator_id, s.taken_at, s.followers, s.following, s.media_count
+         FROM creator_snapshots s
+         ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
+         ORDER BY s.creator_id, s.taken_at, s.id`,
+      )
+      .all(...params) as Row[];
+    const out = new Map<
+      string,
+      {
+        takenAt: string;
+        followers: number | null;
+        following: number | null;
+        mediaCount: number | null;
+      }[]
+    >();
+    for (const r of rows) {
+      const id = String(r.creator_id);
+      const list = out.get(id) ?? [];
+      list.push({
+        takenAt: String(r.taken_at),
+        followers: num(r.followers),
+        following: num(r.following),
+        mediaCount: num(r.media_count),
+      });
+      out.set(id, list);
+    }
+    return out;
+  }
 }
 
 const str = (v: unknown): string | null => (v === null || v === undefined ? null : String(v));
