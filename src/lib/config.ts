@@ -36,6 +36,22 @@ export const ConfigSchema = z.object({
    * every agent found in the home directory. `ig skill uninstall` turns it off.
    */
   autoInstallSkill: z.boolean().default(true),
+  /**
+   * What transcribes downloaded videos. `auto` takes the first usable one:
+   * local whisper.cpp (free, private), then ElevenLabs, then OpenAI, whichever
+   * has its API key in the environment. API keys never live here.
+   */
+  transcribeEngine: z.enum(["auto", "whisper-cpp", "openai", "elevenlabs"]).default("auto"),
+  /** whisper.cpp binary: a name on PATH or a path. Default: whisper-cli, then whisper-cpp. */
+  whisperBin: z.string().optional(),
+  /** Path of a whisper.cpp ggml model file, e.g. ggml-small.bin. */
+  whisperModel: z.string().optional(),
+  /** Model id sent to OpenAI's transcription API. */
+  openaiTranscribeModel: z.string().min(1).default("whisper-1"),
+  /** Model id sent to ElevenLabs speech-to-text. */
+  elevenlabsTranscribeModel: z.string().min(1).default("scribe_v3"),
+  /** A transcript's hook is what is said in this many opening seconds. */
+  hookSeconds: z.number().positive().max(60).default(3),
   limits: z
     .object({
       browser: BackendLimits.default({ dailyBudget: 400, delayMs: [2500, 6000] }),
@@ -54,6 +70,12 @@ export type Config = z.infer<typeof ConfigSchema>;
  * environment only.
  */
 export const HIKER_KEY_ENV = "HIKERAPI_KEY";
+/** Keys of the paid transcription engines. Environment only, like the HikerAPI key. */
+export const OPENAI_KEY_ENV = "OPENAI_API_KEY";
+export const ELEVENLABS_KEY_ENV = "ELEVENLABS_API_KEY";
+/** Overrides `whisperBin` and `whisperModel` for one run. */
+export const WHISPER_BIN_ENV = "IG_WHISPER_BIN";
+export const WHISPER_MODEL_ENV = "IG_WHISPER_MODEL";
 
 export function loadConfig(paths: IgPaths): Config {
   let raw: unknown = {};
@@ -89,6 +111,12 @@ export const SETTABLE_KEYS = [
   "minRefreshDays",
   "browserWindow",
   "autoInstallSkill",
+  "transcribeEngine",
+  "whisperBin",
+  "whisperModel",
+  "openaiTranscribeModel",
+  "elevenlabsTranscribeModel",
+  "hookSeconds",
   "limits.browser.dailyBudget",
   "limits.hiker.dailyBudget",
 ] as const;
@@ -106,7 +134,7 @@ export function setConfigValue(config: Config, key: string, value: string): Conf
     cursor = cursor[part] as Record<string, unknown>;
   }
   const leaf = parts[parts.length - 1] as string;
-  const numeric = key === "minRefreshDays" || key.endsWith("dailyBudget");
+  const numeric = key === "minRefreshDays" || key === "hookSeconds" || key.endsWith("dailyBudget");
   const boolean = key === "autoInstallSkill";
   if (boolean && value !== "true" && value !== "false") {
     throw new IgError("INVALID_INPUT", `Invalid value for ${key}: ${value}`, {
