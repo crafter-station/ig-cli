@@ -1,6 +1,7 @@
 import type { CommandDef } from "../lib/command.js";
 import { analyzeCommands } from "./analyze.js";
 import { authCommands } from "./auth.js";
+import { captionCommands } from "./captions.js";
 import { creatorCommands } from "./creator.js";
 import { mediaCommands } from "./media.js";
 import { metaCommands } from "./meta.js";
@@ -29,6 +30,7 @@ export const commands: CommandDef[] = [
   ...(transcriptCommands as CommandDef[]),
   ...(analyzeCommands as CommandDef[]),
   ...(trendsCommands as CommandDef[]),
+  ...(captionCommands as CommandDef[]),
   ...(skillCommands as CommandDef[]),
 ];
 commands.push(...(metaCommands(() => commands) as CommandDef[]));

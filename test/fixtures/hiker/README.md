@@ -49,6 +49,25 @@ Requests per call: one for `login`, `getProfile`, `getVideo` and
 `relatedCreators`; one per page for the others, stopping at `limit`. All eight
 endpoints are listed at 1 request each (none is in the multi-request table).
 
+## Sound (`Video.audio`)
+
+No fixture file carries a sound: none of the handbook examples for the four media
+endpoints used here includes one. The normalizer reads it from what is documented:
+
+| Read | Documented where |
+|---|---|
+| `Media.clips_metadata`, a free-form object | OpenAPI `Media` schema (typed endpoints: `/v1/user/clips/chunk`, `/v1/media/by/code`) |
+| `music_metadata` on raw media | Handbook examples of `/v2/fbsearch/topsearch`, `/v2/hashtag/medias/*`, `/v2/user/tag/medias`; it is `null` on every reel of the `/v2/fbsearch/reels` example |
+| inside either: `music_info.music_asset_info.{audio_cluster_id, audio_asset_id, id, title, display_artist}` | Same handbook examples |
+| inside either: `original_sound_info.{audio_asset_id, original_audio_title, ig_artist.username}` | `ClipsMetadata` and `ClipsOriginalSoundInfo` in the same maintainer's `instagrapi/types.py`. Always `null` in the handbook examples |
+
+The same two inner shapes were captured live from Instagram's web app (see
+`../browser/README.md`), which is what the provider passes through. **Not verified
+with a real key**: that `clips_metadata` is filled on the typed endpoints, and with
+these inner names. Until then a hiker video simply has no `audio`.
+
+The tests in `test/hiker-audio.test.ts` use inline objects built on those shapes.
+
 ## Inferred, not documented anywhere
 
 - That `/v1/user/clips/chunk` returns pinned reels first. The backend sorts by date either way.
@@ -70,6 +89,7 @@ endpoints are listed at 1 request each (none is in the multi-request table).
 8. `hashtagReels`: confirm the two inferred paths (video URL, thumbnail) and how many pages a limit of 20 costs given the mix of photos.
 9. `relatedCreators` on a public account, then on a private one (expect 403, mapped to NOT_FOUND "private").
 10. A reel whose owner hides like counts: confirm what `like_count` holds.
-11. Compare the `x-hiker-info` response header (`{"reqs": n}`) with one request per call on each endpoint above.
+11. `listReels` on a creator who uses licensed music and on one who uses their own sound: `clips_metadata` is present and `Video.audio` is filled for both.
+12. Compare the `x-hiker-info` response header (`{"reqs": n}`) with one request per call on each endpoint above.
 
 Replace the files here with real captures as each step passes.

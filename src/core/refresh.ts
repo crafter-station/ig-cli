@@ -5,6 +5,7 @@
 import type { Backend } from "../backends/types.js";
 import type { Context } from "../context.js";
 import { ago } from "../lib/format.js";
+import { beginCaptions, type CaptionOutcome, captioned, finishCaptions } from "./captions.js";
 import type { StoredCreator } from "./types.js";
 
 export type RefreshOutcome = {
@@ -15,6 +16,8 @@ export type RefreshOutcome = {
   followers: number | null;
   newVideos: number;
   totalVideos: number;
+  /** Only when complete captions were asked for and the creator was refreshed. */
+  captions?: CaptionOutcome;
 };
 
 const DAY_MS = 86_400_000;
@@ -31,7 +34,9 @@ export function isFresh(ctx: Context, backend: Backend, creator: StoredCreator):
 }
 
 /**
- * Costs one request for the profile plus one or more for reels. Skips without
+ * Costs one request for the profile plus one or more for reels. With
+ * `captions`, a backend that cannot caption every reel also reads further into
+ * the post timeline, one request per page (see core/captions.ts). Skips without
  * any request when the creator is fresh and `force` is false. Backend errors
  * propagate: the caller decides whether one failure ends a batch. Block errors
  * (exit code BLOCKED) must always end it.
@@ -40,7 +45,7 @@ export async function refreshCreator(
   ctx: Context,
   backend: Backend,
   creator: StoredCreator,
-  opts: { reels: number; force: boolean },
+  opts: { reels: number; force: boolean; captions?: boolean },
 ): Promise<RefreshOutcome> {
   if (!opts.force && isFresh(ctx, backend, creator)) {
     return {
@@ -55,10 +60,14 @@ export async function refreshCreator(
 
   const profile = await backend.getProfile(creator.username);
   let newVideos = 0;
+  let captions: CaptionOutcome | undefined;
   if (opts.reels > 0 && !profile.isPrivate) {
-    const listed = await backend.listReels(
-      { id: profile.id, username: profile.username },
-      { limit: opts.reels },
+    const who = { id: profile.id, username: profile.username };
+    // Between the profile and the reel list on purpose: the browser is still
+    // on the profile page, so reading its timeline further needs no page load.
+    const run = opts.captions ? await beginCaptions(ctx, backend, who, opts.reels) : null;
+    const listed = (await backend.listReels(who, { limit: opts.reels })).map((v) =>
+      run ? captioned(run, v) : v,
     );
     // A collaboration can name the other account as its author. Everything on
     // this creator's reels list is filed under this creator, the only one
@@ -71,6 +80,7 @@ export async function refreshCreator(
     // Store the profile first: videos reference the creator row.
     ctx.store.upsertCreator(profile);
     newVideos = ctx.store.upsertVideos(reels).inserted;
+    if (run) captions = await finishCaptions(ctx, backend, run, reels);
   } else {
     ctx.store.upsertCreator(profile);
   }
@@ -83,5 +93,6 @@ export async function refreshCreator(
     followers: stored.followers,
     newVideos,
     totalVideos: stored.videoCount,
+    ...(captions ? { captions } : {}),
   };
 }

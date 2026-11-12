@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Backend } from "../backends/types.js";
 import { bold, danger, info, muted, ok, warn } from "../cligentic/platform/style.js";
+import { CAPTIONS_FLAG_HELP, type CaptionOutcome } from "../core/captions.js";
 import { byFollowersDesc, discoverCreators, type SourceReport } from "../core/discovery.js";
 import { refreshCreator } from "../core/refresh.js";
 import {
@@ -507,6 +508,8 @@ type GetMeta = {
     reason: string | null;
     newVideos: number;
     requestsUsed: number;
+    /** Only with --captions, when the creator was refreshed. */
+    captions?: CaptionOutcome;
   };
 };
 
@@ -525,6 +528,7 @@ const get = defineCommand({
       .describe("Reels to fetch on refresh"),
     backend: flags.backend,
     force: flags.force.describe("Refresh even if refreshed recently"),
+    captions: z.boolean().default(false).describe(`With --refresh: ${CAPTIONS_FLAG_HELP}`),
   }),
   output: StoredCreatorSchema,
   network: true,
@@ -535,9 +539,15 @@ const get = defineCommand({
       .option("--refresh", "fetch profile and reels first")
       .option("--reels <n>", "reels to fetch on refresh (default 15)")
       .option("--backend <name>", "browser | hiker")
-      .option("--force", "refresh even if refreshed recently"),
+      .option("--force", "refresh even if refreshed recently")
+      .option("--captions", `with --refresh: ${CAPTIONS_FLAG_HELP}`),
   args: ([username]) => ({ username }),
   handler: async (input, ctx) => {
+    if (input.captions && !input.refresh) {
+      throw new IgError("INVALID_INPUT", "--captions only applies together with --refresh.", {
+        hint: `Run \`ig creator get ${normalizeUsername(input.username)} --refresh --captions\`, or \`ig video captions --creator ${normalizeUsername(input.username)}\` to fill stored reels only.`,
+      });
+    }
     const creator = ctx.store.getCreator(normalizeUsername(input.username));
     if (!input.refresh) {
       return {
@@ -562,6 +572,7 @@ const get = defineCommand({
     const outcome = await refreshCreator(ctx, backend, creator, {
       reels: input.reels,
       force: input.force,
+      captions: input.captions,
     });
     const meta: GetMeta = {
       refresh: {
@@ -569,6 +580,7 @@ const get = defineCommand({
         reason: outcome.reason,
         newVideos: outcome.newVideos,
         requestsUsed: gate.budget.used - usedBefore,
+        ...(outcome.captions ? { captions: outcome.captions } : {}),
       },
     };
     // By id: the account may have been renamed since it was stored.
@@ -612,8 +624,9 @@ const get = defineCommand({
     if (meta.refresh?.status === "skipped") {
       process.stderr.write(`${warn("not refreshed")} ${meta.refresh.reason ?? ""}\n`);
     } else if (meta.refresh) {
+      const c = meta.refresh.captions;
       note(
-        `refreshed: ${meta.refresh.newVideos} new video(s), ${meta.refresh.requestsUsed} request(s)`,
+        `refreshed: ${meta.refresh.newVideos} new video(s), ${meta.refresh.requestsUsed} request(s)${c ? `; captions: ${c.filled} filled with ${c.requests} of those request(s), ${c.missing} reel(s) still without` : ""}`,
       );
     }
   },

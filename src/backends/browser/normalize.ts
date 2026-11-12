@@ -3,7 +3,7 @@
 // documented by Instagram, so each parser fails loudly with UPSTREAM_CHANGED
 // when the part it needs is missing, instead of returning empty data.
 
-import { type Creator, profileUrl, reelUrl, type Video } from "../../core/types.js";
+import { type Audio, type Creator, profileUrl, reelUrl, type Video } from "../../core/types.js";
 import { IgError } from "../../lib/errors.js";
 import type { CreatorCandidate } from "../types.js";
 
@@ -60,10 +60,15 @@ export function findKey(root: unknown, key: string, depth = 0): unknown {
 // time, observed about a minute before the published `taken_at`.
 const IG_EPOCH_MS = 1314220021721n;
 
+/** Upload time of a media id in epoch milliseconds, or null for anything that is not one. */
+export function uploadMs(pk: string | null): number | null {
+  if (!pk || !/^\d{10,}$/.test(pk)) return null;
+  return Number((BigInt(pk) >> 23n) + IG_EPOCH_MS);
+}
+
 export function takenAtFromPk(pk: string): string | null {
-  if (!/^\d{10,}$/.test(pk)) return null;
-  const ms = Number((BigInt(pk) >> 23n) + IG_EPOCH_MS);
-  return new Date(ms).toISOString();
+  const ms = uploadMs(pk);
+  return ms === null ? null : new Date(ms).toISOString();
 }
 
 const isoFromSeconds = (v: unknown): string | null =>
@@ -84,6 +89,38 @@ function thumbnailOf(media: Json): string | null {
   if (!Array.isArray(candidates)) return null;
   const first = candidates[0];
   return isObj(first) ? str(first.url) : null;
+}
+
+/**
+ * The sound of a reel, from `clips_metadata`. The profile timeline and the
+ * reel page carry it; the reels tab and keyword results do not. Returns
+ * undefined when the node has no `clips_metadata` at all, so a surface that
+ * omits it never erases what another surface stored.
+ */
+export function audioOf(media: Json): Audio | null | undefined {
+  if (!("clips_metadata" in media)) return undefined;
+  const meta = media.clips_metadata;
+  if (!isObj(meta)) return null;
+  const music = dig(meta, "music_info", "music_asset_info");
+  if (isObj(music)) {
+    return {
+      id: str(music.audio_cluster_id),
+      title: str(music.title),
+      artist: str(music.display_artist),
+      isOriginal: false,
+    };
+  }
+  const sound = meta.original_sound_info;
+  if (isObj(sound)) {
+    return {
+      id: str(sound.audio_asset_id),
+      // Localized by Instagram when the creator did not name it ("Audio original").
+      title: str(sound.original_audio_title),
+      artist: str(dig(sound, "ig_artist", "username")),
+      isOriginal: true,
+    };
+  }
+  return null;
 }
 
 /** Counts are null, not 0, when the owner hides them. */
@@ -111,6 +148,7 @@ export function videoFromMedia(
   const creatorId = str(user?.pk) ?? str(user?.id) ?? owner?.id ?? null;
   const creatorUsername = str(user?.username) ?? owner?.username ?? null;
   if (!id || !shortcode || !creatorId || !creatorUsername) return null;
+  const audio = audioOf(media);
 
   return {
     id,
@@ -126,6 +164,7 @@ export function videoFromMedia(
     comments: countOf(media, "comment_count"),
     thumbnailUrl: thumbnailOf(media),
     videoUrl: videoUrlOf(media),
+    ...(audio === undefined ? {} : { audio }),
   };
 }
 
@@ -188,21 +227,58 @@ export function reelsFromResponse(
   return { items, hasNext };
 }
 
-/** PolarisProfilePostsQuery -> the videos among the latest posts, keyed by media id. */
-export function timelineFromResponse(json: unknown): Map<string, Video> {
-  const { edges } = edgesOf(
-    dig(json, "data", "xdt_api__v1__feed__user_timeline_graphql_connection"),
-    "timeline",
-  );
-  const out = new Map<string, Video>();
+export type TimelinePage = {
+  /** The videos among the posts of this page, keyed by media id. */
+  videos: Map<string, Video>;
+  /** Posts on the page, photos and carousels included. */
+  posts: number;
+  hasNext: boolean;
+  /**
+   * Publication time (ms) of the oldest post on the page that is not pinned,
+   * or null when every post is pinned. Posts come newest first after the
+   * pinned ones, so everything on later pages is older than this.
+   */
+  oldestMs: number | null;
+};
+
+const TIMELINE_KEY = "xdt_api__v1__feed__user_timeline_graphql_connection";
+
+/**
+ * PolarisProfilePostsQuery, and the pagination query the app fires when the
+ * profile grid is scrolled, -> one page of the post timeline: 12 posts with
+ * caption, date, video URL and sound, no play count.
+ */
+export function timelinePageFromResponse(json: unknown): TimelinePage {
+  const { edges, hasNext } = edgesOf(dig(json, "data", TIMELINE_KEY), "timeline");
+  const videos = new Map<string, Video>();
+  let oldestMs: number | null = null;
   for (const edge of edges) {
-    const video = videoFromMedia(dig(edge, "node"));
-    if (video) out.set(video.id, video);
+    const node = dig(edge, "node");
+    if (!isObj(node)) continue;
+    const video = videoFromMedia(node);
+    if (video) videos.set(video.id, video);
+    const pinned =
+      Array.isArray(node.timeline_pinned_user_ids) && node.timeline_pinned_user_ids.length > 0;
+    // `taken_at` is what the grid is ordered by; the id's upload time can be
+    // days earlier for a scheduled post, so it is only the fallback.
+    const takenAt = typeof node.taken_at === "number" && node.taken_at > 0 ? node.taken_at : null;
+    const at = pinned ? null : takenAt !== null ? takenAt * 1000 : uploadMs(str(node.pk));
+    if (at !== null && (oldestMs === null || at < oldestMs)) oldestMs = at;
   }
-  return out;
+  return { videos, posts: edges.length, hasNext, oldestMs };
 }
 
-/** Fills caption, date, thumbnail and video URL from the timeline; keeps the reel's own counts. */
+/** True for a payload that holds a page of the post timeline, whatever query produced it. */
+export function isTimelinePayload(json: unknown): boolean {
+  return isObj(dig(json, "data", TIMELINE_KEY));
+}
+
+/** PolarisProfilePostsQuery -> the videos among the latest posts, keyed by media id. */
+export function timelineFromResponse(json: unknown): Map<string, Video> {
+  return timelinePageFromResponse(json).videos;
+}
+
+/** Fills caption, date, thumbnail, video URL and sound from the timeline; keeps the reel's own counts. */
 export function mergeTimeline(reels: Video[], timeline: Map<string, Video> | undefined): Video[] {
   if (!timeline) return reels;
   return reels.map((reel) => {
@@ -217,6 +293,7 @@ export function mergeTimeline(reels: Video[], timeline: Map<string, Video> | und
       comments: reel.comments ?? post.comments,
       thumbnailUrl: reel.thumbnailUrl ?? post.thumbnailUrl,
       videoUrl: post.videoUrl ?? reel.videoUrl,
+      ...(reel.audio || post.audio ? { audio: reel.audio ?? post.audio } : {}),
     };
   });
 }

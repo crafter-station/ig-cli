@@ -13,7 +13,10 @@
 //
 // So a reel's play count comes from the reels tab and its caption from the
 // profile timeline; reels older than the 12 latest posts have no caption
-// until they are fetched individually (`ig video download` does that).
+// until they are fetched individually (`ig video download` does that) or the
+// timeline is paged further (`--captions`, see captions.ts): scrolling the
+// profile grid loads 12 more posts per scroll, with caption, date, video URL
+// and sound.
 
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -21,7 +24,14 @@ import { atomicWriteJson } from "../../cligentic/foundation/atomic-write.js";
 import type { Creator, Video } from "../../core/types.js";
 import { IgError } from "../../lib/errors.js";
 import type { BackendFactoryDeps, SessionBackend } from "../index.js";
-import type { BackendStatus, CreatorCandidate, ListOptions } from "../types.js";
+import type {
+  BackendStatus,
+  CaptionOptions,
+  CaptionPass,
+  CreatorCandidate,
+  ListOptions,
+} from "../types.js";
+import { pageTimeline, passOf, type TimelineState, timelineState } from "./captions.js";
 import {
   candidatesFromChaining,
   candidatesFromSearch,
@@ -29,7 +39,7 @@ import {
   profileFromResponse,
   reelsFromResponse,
   serpFromResponse,
-  timelineFromResponse,
+  timelinePageFromResponse,
   videoFromWebInfo,
 } from "./normalize.js";
 import { OPS, Session } from "./session.js";
@@ -48,8 +58,8 @@ class BrowserBackend implements SessionBackend {
   readonly name = "browser" as const;
   private readonly session: Session;
   private readonly markerFile: string;
-  /** Latest posts per creator id, from the profile page, used to caption reels. */
-  private readonly timelines = new Map<string, Map<string, Video>>();
+  /** What was read of each creator's post timeline, by creator id; used to caption reels. */
+  private readonly timelines = new Map<string, TimelineState>();
   /** Related accounts per creator id; they arrive with the profile page for free. */
   private readonly related = new Map<string, CreatorCandidate[]>();
 
@@ -159,13 +169,53 @@ class BrowserBackend implements SessionBackend {
     const profile = profileFromResponse(profileJson);
 
     const timelineJson = first(captured, OPS.timeline);
+    // Replaced, not merged: the page was reloaded, so scrolling starts over.
     if (timelineJson !== undefined) {
-      this.timelines.set(profile.id, timelineFromResponse(timelineJson));
+      this.timelines.set(profile.id, timelineState(timelinePageFromResponse(timelineJson)));
+    } else {
+      this.timelines.delete(profile.id);
     }
     const relatedJson = first(captured, OPS.related);
     if (relatedJson !== undefined)
       this.related.set(profile.id, candidatesFromChaining(relatedJson));
     return profile;
+  }
+
+  /**
+   * Scrolls the creator's profile grid for the posts beyond the first 12.
+   * One request per scroll; plus one to open the profile when the browser is
+   * not already on it, which it is right after `getProfile`.
+   */
+  async fetchCaptions(
+    creator: { id: string; username: string },
+    opts: CaptionOptions,
+  ): Promise<CaptionPass> {
+    this.requireLogin();
+    const path = `/${encodeURIComponent(creator.username)}/`;
+    let opened: string[] = [];
+    let requests = 0;
+    const onProfile = this.session.path?.toLowerCase() === path.toLowerCase();
+    if (!onProfile || !this.timelines.has(creator.id)) {
+      if (opts.maxRequests <= 0) return passOf(undefined, [], 0);
+      const profile = await this.getProfile(creator.username);
+      requests = 1;
+      // A different id means the username now belongs to another account.
+      if (profile.id !== creator.id) return passOf(undefined, [], requests);
+      opened = [...(this.timelines.get(creator.id)?.videos.keys() ?? [])];
+    }
+    const state = this.timelines.get(creator.id);
+    // No timeline query fired: the account has no posts, or is private.
+    if (!state) return passOf(undefined, [], requests);
+
+    const paged = await pageTimeline(
+      state,
+      { ...opts, maxRequests: opts.maxRequests - requests },
+      {
+        scroll: () => this.session.scrollFor(OPS.timeline),
+        remaining: () => this.deps.gate.budget.remaining,
+      },
+    );
+    return passOf(state, [...opened, ...paged.loaded], requests + paged.requests);
   }
 
   async listReels(creator: { id: string; username: string }, opts: ListOptions): Promise<Video[]> {
@@ -198,7 +248,7 @@ class BrowserBackend implements SessionBackend {
     }
 
     // Pinned reels lead the grid regardless of age; order by date instead.
-    const merged = mergeTimeline([...byId.values()], this.timelines.get(creator.id));
+    const merged = mergeTimeline([...byId.values()], this.timelines.get(creator.id)?.videos);
     merged.sort((a, b) => (b.takenAt ?? "").localeCompare(a.takenAt ?? ""));
     return merged.slice(0, opts.limit);
   }

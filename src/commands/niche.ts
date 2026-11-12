@@ -1,6 +1,13 @@
 import { z } from "zod";
 import type { Backend } from "../backends/types.js";
 import { bold, danger, muted, ok, warn } from "../cligentic/platform/style.js";
+import {
+  CAPTION_MAX_REQUESTS,
+  CAPTIONS_FLAG_HELP,
+  CaptionOutcomeSchema,
+  pagesForCaptions,
+  refreshNeedsCaptionPass,
+} from "../core/captions.js";
 import { isFresh, refreshCreator } from "../core/refresh.js";
 import {
   isSlug,
@@ -204,6 +211,9 @@ export const RefreshItemSchema = z.object({
   followers: z.number().int().nullable(),
   newVideos: z.number().int().describe("Videos seen for the first time in this run"),
   totalVideos: z.number().int().describe("Videos stored for this creator after the run"),
+  captions: CaptionOutcomeSchema.optional().describe(
+    "Only with --captions, for refreshed creators",
+  ),
 });
 type RefreshItem = z.infer<typeof RefreshItemSchema>;
 
@@ -225,7 +235,13 @@ const refresh = defineCommand({
   description:
     "Creators refreshed more recently than `minRefreshDays` are skipped unless --force.\n" +
     "Stale creators go first. Progress is saved per creator, so a run stopped by a\n" +
-    "block or the daily budget loses nothing and can be continued later.",
+    "block or the daily budget loses nothing and can be continued later.\n" +
+    "The browser backend only gets captions for a creator's 12 latest posts. With\n" +
+    "--captions it scrolls further back through their posts until the fetched reels\n" +
+    `are covered: 1 extra request per 12 posts, at most ${CAPTION_MAX_REQUESTS} per creator, and nothing\n` +
+    "extra when the new reels are among the 12 latest posts. It costs nothing on\n" +
+    "hiker, which always returns captions. For reels already stored without a\n" +
+    "caption, `ig video captions` fills them without re-fetching metrics.",
   input: z.object({
     slug: z.string(),
     reels: z.coerce.number().int().min(0).max(100).default(15).describe("Reels per creator"),
@@ -237,6 +253,7 @@ const refresh = defineCommand({
       .describe("Stop after this many creators"),
     backend: flags.backend,
     force: flags.force.describe("Refresh even if refreshed recently"),
+    captions: z.boolean().default(false).describe(CAPTIONS_FLAG_HELP),
     dryRun: flags.dryRun,
   }),
   output: z.object({
@@ -245,7 +262,20 @@ const refresh = defineCommand({
     refreshed: z.number().int(),
     skipped: z.number().int(),
     failed: z.number().int(),
-    requestsUsed: z.number().int().describe("Backend requests spent by this run"),
+    requestsUsed: z
+      .number()
+      .int()
+      .describe("Backend requests spent by this run, caption requests included"),
+    captionsFilled: z
+      .number()
+      .int()
+      .optional()
+      .describe("Only with --captions: captions gained by reading older posts"),
+    captionRequests: z
+      .number()
+      .int()
+      .optional()
+      .describe("Only with --captions: how many of requestsUsed the captions cost"),
     items: z.array(RefreshItemSchema),
   }),
   network: true,
@@ -257,6 +287,7 @@ const refresh = defineCommand({
       .option("--max-creators <n>", "stop after this many creators")
       .option("--backend <name>", "browser | hiker")
       .option("--force", "refresh even if refreshed recently")
+      .option("--captions", CAPTIONS_FLAG_HELP)
       .option("--dry-run", "list what would be refreshed; makes no requests"),
   args: ([slug]) => ({ slug }),
   handler: async (input, ctx) => {
@@ -278,6 +309,12 @@ const refresh = defineCommand({
       skipped: count("skipped"),
       failed: count("failed"),
       requestsUsed: gate.budget.used - usedBefore,
+      ...(input.captions
+        ? {
+            captionsFilled: items.reduce((sum, item) => sum + (item.captions?.filled ?? 0), 0),
+            captionRequests: items.reduce((sum, item) => sum + (item.captions?.requests ?? 0), 0),
+          }
+        : {}),
       items,
     });
 
@@ -297,9 +334,27 @@ const refresh = defineCommand({
       // The freshness rule only reads the backend's name, so the plan is made
       // without creating a backend: no browser is launched, no request is spent.
       const named = { name } as Backend;
+      // Extra pages are only read by the browser backend. How many depends on
+      // how often a creator posts, which is not known before asking, so what
+      // is given is the ceiling, and how many creators are sure to need some.
+      // The others cost extra only if they posted more than 12 times since
+      // their last refresh.
+      let captionCreators = 0;
+      let captionCreatorsBehind = 0;
       for (const creator of creators) {
-        items.push(planItem(creator, !input.force && isFresh(ctx, named, creator)));
+        const fresh = !input.force && isFresh(ctx, named, creator);
+        items.push(planItem(creator, fresh));
+        if (fresh || !input.captions || !pagesForCaptions(name) || creator.isPrivate) continue;
+        if (input.reels <= 0) continue;
+        captionCreators++;
+        const stored = ctx.store.listVideos({ creatorId: creator.id });
+        if (refreshNeedsCaptionPass(stored, input.reels)) captionCreatorsBehind++;
       }
+      const captionRequestsMax = captionCreators * CAPTION_MAX_REQUESTS;
+      const captionNote =
+        captionRequestsMax > 0
+          ? ` plus 0 to ${captionRequestsMax} for captions (${captionCreatorsBehind} creator(s) have captions to catch up on)`
+          : "";
       const would = count("would-refresh");
       const { remaining } = gate.budget;
       const halt = gate.halted();
@@ -314,8 +369,8 @@ const refresh = defineCommand({
       }
       if (would > 0) {
         nextSteps.push({
-          command: `ig niche refresh ${niche}${input.force ? " --force" : ""}${input.reels !== 15 ? ` --reels ${input.reels}` : ""}${input.maxCreators ? ` --max-creators ${input.maxCreators}` : ""}${input.backend ? ` --backend ${input.backend}` : ""}`,
-          description: `refresh ${would} creator(s), about ${estimatedRequests} request(s); ${remaining} left today`,
+          command: `ig niche refresh ${niche}${input.force ? " --force" : ""}${input.reels !== 15 ? ` --reels ${input.reels}` : ""}${input.maxCreators ? ` --max-creators ${input.maxCreators}` : ""}${input.backend ? ` --backend ${input.backend}` : ""}${input.captions ? " --captions" : ""}`,
+          description: `refresh ${would} creator(s), about ${estimatedRequests} request(s)${captionNote}; ${remaining} left today`,
         });
       } else {
         nextSteps.push({
@@ -326,9 +381,11 @@ const refresh = defineCommand({
       return {
         data: summary(),
         meta: {
+          ...(input.captions ? { captions: true } : {}),
           dryRun: true,
           wouldRefresh: would,
           estimatedRequests,
+          ...(input.captions ? { captionRequestsMax, captionCreatorsBehind } : {}),
           budgetRemaining: remaining,
           halted: halt !== null,
           notConsidered: inNiche.length - creators.length,
@@ -347,11 +404,13 @@ const refresh = defineCommand({
         const outcome = await refreshCreator(ctx, backend, creator, {
           reels: input.reels,
           force: input.force,
+          captions: input.captions,
         });
         items.push(outcome);
+        const c = outcome.captions;
         ctx.log(
           outcome.status === "refreshed"
-            ? `${position} @${outcome.username}: ${compact(outcome.followers)} followers, ${outcome.newVideos} new of ${outcome.totalVideos} videos`
+            ? `${position} @${outcome.username}: ${compact(outcome.followers)} followers, ${outcome.newVideos} new of ${outcome.totalVideos} videos${c ? `, ${c.filled} caption(s) filled with ${c.requests} extra request(s)` : ""}`
             : `${position} @${outcome.username}: skipped, ${outcome.reason}`,
         );
       } catch (err) {
@@ -365,7 +424,7 @@ const refresh = defineCommand({
             remaining: creators.length - i,
             total: creators.length,
             items: done,
-            resume: `ig niche refresh ${niche}`,
+            resume: `ig niche refresh ${niche}${input.captions ? " --captions" : ""}`,
           });
         }
         items.push({
@@ -412,7 +471,20 @@ const refresh = defineCommand({
         description: `${inNiche.length - creators.length} more creator(s) in the niche; stalest go first`,
       });
     }
-    return { data, meta: { notConsidered: inNiche.length - creators.length }, nextSteps };
+    if (input.captions && items.some((item) => (item.captions?.missing ?? 0) > 0)) {
+      nextSteps.push({
+        command: `ig video captions --niche ${niche} --dry-run`,
+        description: "some stored reels still have no caption; see what filling them would cost",
+      });
+    }
+    return {
+      data,
+      meta: {
+        notConsidered: inNiche.length - creators.length,
+        ...(input.captions ? { captions: true } : {}),
+      },
+      nextSteps,
+    };
   },
   human: (data, _ctx, meta) => {
     if (data.items.length === 0) {
@@ -424,13 +496,18 @@ const refresh = defineCommand({
       ? [
           warn(`dry run: ${would} would be refreshed`),
           `${data.skipped} skipped`,
-          `about ${meta.estimatedRequests} request(s), ${meta.budgetRemaining} left today`,
+          `about ${meta.estimatedRequests} request(s)${Number(meta.captionRequestsMax) > 0 ? ` plus 0 to ${meta.captionRequestsMax} for captions` : ""}, ${meta.budgetRemaining} left today`,
         ]
       : [
           ok(`${data.refreshed} refreshed`),
           `${data.skipped} skipped`,
           data.failed > 0 ? danger(`${data.failed} failed`) : "0 failed",
           `${data.requestsUsed} request(s)`,
+          ...(meta.captions
+            ? [
+                `${data.captionsFilled} caption(s) filled with ${data.captionRequests} of those request(s)`,
+              ]
+            : []),
         ];
     process.stdout.write(`${bold(data.niche)} on ${data.backend}: ${parts.join(muted(" · "))}\n\n`);
 
@@ -454,6 +531,16 @@ const refresh = defineCommand({
           cell: (item) => (item.newVideos > 0 ? `+${item.newVideos}` : muted("–")),
         },
         { header: "VIDEOS", align: "right", cell: (item) => String(item.totalVideos) },
+        ...(meta.captions && !meta.dryRun
+          ? [
+              {
+                header: "NO CAPTION",
+                align: "right" as const,
+                cell: (item: RefreshItem) =>
+                  item.captions ? String(item.captions.missing) : muted("–"),
+              },
+            ]
+          : []),
         { header: "NOTE", cell: (item) => oneLine(item.reason), maxWidth: 60 },
       ],
       "Nothing to refresh.",

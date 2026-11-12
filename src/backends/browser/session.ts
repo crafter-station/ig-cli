@@ -8,7 +8,7 @@ import { existsSync } from "node:fs";
 import type { BrowserContext, Page, Response } from "playwright-core";
 import type { Gate } from "../../core/gate.js";
 import { IgError } from "../../lib/errors.js";
-import { blockSignal } from "./normalize.js";
+import { blockSignal, isTimelinePayload } from "./normalize.js";
 
 export const ORIGIN = "https://www.instagram.com";
 
@@ -25,6 +25,15 @@ export const OPS = {
 } as const;
 
 const WATCHED = new Set<string>(Object.values(OPS));
+
+/**
+ * Scrolling the profile grid loads further timeline pages through a
+ * pagination query of the same family (observed live:
+ * `PolarisProfilePostsTabContentQuery_connection`). Any query of the family
+ * whose payload is a timeline page is filed under `OPS.timeline`, so a rename
+ * of the pagination query alone does not break paging.
+ */
+const TIMELINE_FAMILY = "PolarisProfilePosts";
 
 // Still a real, headed Chrome, only parked where it does not cover the user's
 // work. Chrome stops rendering windows it believes nobody can see, and a page
@@ -58,6 +67,16 @@ export class Session {
 
   get hasProfile(): boolean {
     return existsSync(this.profileDir);
+  }
+
+  /** Path of the page the browser is on, or null before the first visit. */
+  get path(): string | null {
+    if (!this.page) return null;
+    try {
+      return new URL(this.page.url()).pathname;
+    } catch {
+      return null;
+    }
   }
 
   /** Launches Chrome on first use. */
@@ -117,11 +136,16 @@ export class Session {
       this.rateLimited = true;
       return;
     }
-    const name = res.request().headers()["x-fb-friendly-name"];
-    if (!name || !WATCHED.has(name)) return;
+    const sent = res.request().headers()["x-fb-friendly-name"];
+    if (!sent) return;
+    const family = !WATCHED.has(sent) && sent.startsWith(TIMELINE_FAMILY);
+    if (!WATCHED.has(sent) && !family) return;
     try {
       const json: unknown = await res.json();
       this.refusal ??= blockSignal(json);
+      if (family && !isTimelinePayload(json)) return;
+      const name = family ? OPS.timeline : sent;
+      if (family) this.log(`timeline page from ${sent}`);
       const list = this.captured.get(name) ?? [];
       list.push(json);
       this.captured.set(name, list);

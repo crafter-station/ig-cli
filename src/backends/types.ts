@@ -36,6 +36,37 @@ export type BackendStatus = {
 
 export type ListOptions = { limit: number };
 
+export type CaptionOptions = {
+  /**
+   * Media ids to cover. Reading stops once each one was seen or the timeline
+   * has gone past (older than) all of them.
+   */
+  ids: string[];
+  /** Also keep reading until this many videos were seen. 0 for no minimum. */
+  minVideos: number;
+  /** Hard cap on upstream requests for this call. */
+  maxRequests: number;
+  /**
+   * Stop as soon as no more than this many of `ids` are still uncovered: the
+   * caller fetches that few one by one, which is never dearer than reading
+   * another page for them. Defaults to 0.
+   */
+  leave?: number;
+};
+
+export type CaptionPass = {
+  /**
+   * Every video the creator's timeline has shown so far, with caption and
+   * sound where upstream has them; `plays` is null. Includes what arrived
+   * for free with the profile. A video here with a null caption has none.
+   */
+  videos: Video[];
+  /** Ids among `videos` that this call's own requests loaded. */
+  loaded: string[];
+  /** Upstream requests this call spent. */
+  requests: number;
+};
+
 export interface Backend {
   readonly name: BackendName;
 
@@ -68,6 +99,20 @@ export interface Backend {
     creator: { id: string; username: string },
     opts: ListOptions,
   ): Promise<CreatorCandidate[]>;
+
+  /**
+   * Optional. Only for a backend whose `listReels` cannot caption every reel
+   * (browser). Reads further into the creator's post timeline, which carries
+   * caption, date, video URL and sound but no play count. A backend that already returns complete captions (hiker)
+   * does not implement it. See `CaptionOptions` for when it stops.
+   *
+   * Free of an extra page load when called right after `getProfile` for the
+   * same creator; any reels it loads are also used by the next `listReels`.
+   */
+  fetchCaptions?(
+    creator: { id: string; username: string },
+    opts: CaptionOptions,
+  ): Promise<CaptionPass>;
 
   /** Releases resources (closes the browser). Safe to call more than once. */
   close(): Promise<void>;
