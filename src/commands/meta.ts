@@ -2,6 +2,7 @@ import { accessSync, constants, mkdirSync } from "node:fs";
 import { z } from "zod";
 import { hasCommand } from "../cligentic/platform/detect.js";
 import { bold, danger, dim, muted, ok } from "../cligentic/platform/style.js";
+import { toolVersion } from "../core/analyze.js";
 import {
   type CommandDef,
   cliPath,
@@ -222,6 +223,17 @@ export function metaCommands(getAll: () => CommandDef[]) {
         "Optional fallback downloader. Install from https://github.com/yt-dlp/yt-dlp",
         false,
       );
+
+      for (const tool of ["ffmpeg", "ffprobe"] as const) {
+        const version = toolVersion(tool);
+        add(
+          tool,
+          version !== null,
+          version ?? "not found",
+          "Optional, needed by `ig video analyze`. Install from https://ffmpeg.org/download.html",
+          false,
+        );
+      }
 
       const healthy = checks.every((c) => c.ok || !c.required);
       const failing = checks.filter((c) => !c.ok && c.required && c.hint?.startsWith("ig "));
