@@ -31,7 +31,14 @@ import {
   type Env,
 } from "../transcribe/types.js";
 import { createWhisperCppEngine, whisperCppAvailability } from "../transcribe/whisper-cpp.js";
-import { lastLine, type MediaProbe, probeFile, type Runner, runTool } from "./ffmpeg.js";
+import {
+  FFMPEG_HINT,
+  lastLine,
+  type MediaProbe,
+  probeFile,
+  type Runner,
+  runTool,
+} from "./ffmpeg.js";
 import { findStoredVideo } from "./targets.js";
 import type { StoredVideo, TranscriptSegment } from "./types.js";
 
@@ -292,8 +299,8 @@ export async function transcribeVideos(
   };
 
   if (!deps.hasCommand("ffmpeg") || !deps.hasCommand("ffprobe")) {
-    throw new IgError("BACKEND_UNAVAILABLE", "ffmpeg and ffprobe are needed to read the audio.", {
-      hint: "Install ffmpeg (https://ffmpeg.org/download.html) and make sure it is on PATH.",
+    throw new IgError("UNSUPPORTED", "ffmpeg and ffprobe are needed to read the audio.", {
+      hint: FFMPEG_HINT,
     });
   }
 

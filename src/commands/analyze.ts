@@ -17,6 +17,7 @@ import {
   missingTools,
   readFramesIndex,
 } from "../core/analyze.js";
+import { FFMPEG_HINT } from "../core/ffmpeg.js";
 import { median, rankVideos } from "../core/ranking.js";
 import { findStoredVideo, isSafeShortcode } from "../core/targets.js";
 import type { RankedVideo } from "../core/types.js";
@@ -51,7 +52,7 @@ function requireTools(): void {
   const missing = missingTools(analyzeSeams.deps);
   if (missing.length > 0) {
     throw new IgError("UNSUPPORTED", `${missing.join(" and ")} not found on PATH.`, {
-      hint: "Install ffmpeg (https://ffmpeg.org/download.html), then check with `ig doctor`.",
+      hint: FFMPEG_HINT,
     });
   }
 }
@@ -71,7 +72,7 @@ function printAnalysis(item: AnalyzeItem): void {
   const who = `${oneLine(item.creatorUsername) || "?"}/${oneLine(item.shortcode)}`;
   const a = item.analysis;
   if (!a) {
-    const label = item.status === "failed" ? danger("failed") : warn(item.status);
+    const label = item.status === "failed" ? danger("failed") : warn(item.status.replace("-", " "));
     process.stdout.write(`${bold(who)}  ${label}  ${oneLine(item.reason)}\n`);
     return;
   }

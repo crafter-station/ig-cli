@@ -630,8 +630,10 @@ describe("video transcribe", () => {
   it("needs ffmpeg and an engine before doing anything", async () => {
     const noFfmpeg = harness({ ffmpeg: false });
     const first = setup(noFfmpeg);
+    // The same code `video probe` and `video analyze` give without ffmpeg.
     expect(await failure(() => transcribe(first.defs, { targets: ["sc1"] }))).toMatchObject({
-      code: "BACKEND_UNAVAILABLE",
+      code: "UNSUPPORTED",
+      exitCode: 2,
     });
     await env.cleanup();
     const noEngine = harness({ usable: [] });

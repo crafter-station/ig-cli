@@ -38,6 +38,10 @@ export function runTool(tool: Tool, args: string[]): Promise<RunResult> {
   });
 }
 
+/** What to do when ffmpeg or ffprobe is missing. One wording for every command. */
+export const FFMPEG_HINT =
+  "Install ffmpeg (ffprobe ships with it, https://ffmpeg.org/download.html) and make sure it is on PATH. `ig doctor` shows what was found.";
+
 /** Whether the tool can be found on PATH. */
 export function hasTool(tool: Tool): boolean {
   return hasCommand(tool);
