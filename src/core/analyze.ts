@@ -389,13 +389,22 @@ export function pickFrames(
   picks.push(...spread(afterCuts, max - 1));
 
   const min = Math.min(opts.minFrames ?? MIN_FRAMES, max);
-  if (picks.length < min && end !== null) {
-    const need = min - picks.length;
-    for (let k = 1; k <= need; k++) {
-      const t = round(Math.min((end * k) / (need + 1), lastUsable), 3);
-      if (picks.some((p) => Math.abs(p.timeSec - t) < 0.3)) continue;
-      picks.push({ timeSec: t, reason: "interval", shot: shotAt(t) });
+  // Fillers go to the middle of the longest stretch without a frame, so they
+  // never land on top of a cut frame and a long closing shot gets covered.
+  while (picks.length < min && end !== null) {
+    const times = [...picks.map((p) => p.timeSec).sort((a, b) => a - b), end];
+    let from = 0;
+    let gap = 0;
+    for (let i = 0; i + 1 < times.length; i++) {
+      const width = (times[i + 1] as number) - (times[i] as number);
+      if (width > gap + 1e-9) {
+        gap = width;
+        from = times[i] as number;
+      }
     }
+    if (gap < 0.6) break;
+    const t = round(Math.min(from + gap / 2, lastUsable), 3);
+    picks.push({ timeSec: t, reason: "interval", shot: shotAt(t) });
   }
   return picks.sort((a, b) => a.timeSec - b.timeSec);
 }
@@ -539,15 +548,18 @@ export function parseAudio(stderr: string, durationSec: number | null): AudioFac
   };
   let silence = 0;
   for (const m of stderr.matchAll(/silence_duration:\s*([0-9.]+)/g)) silence += Number(m[1]);
-  const mean = number(/mean_volume:\s*(-?[0-9.]+|-?inf)\s*dB/);
+  const mean = number(/mean_volume:\s*(-?[0-9.]+)\s*dB/);
+  const max = number(/max_volume:\s*(-?[0-9.]+)\s*dB/);
+  // Neither filter reported anything: unknown, not "no silence".
+  const measured = /mean_volume:|silence_duration:/.test(stderr);
   const known = durationSec !== null && durationSec > 0;
   const silenceSec = known ? Math.min(silence, durationSec) : silence;
   return {
     hasAudio: true,
     meanVolumeDb: mean,
-    maxVolumeDb: number(/max_volume:\s*(-?[0-9.]+)\s*dB/),
-    silenceSec: round(silenceSec),
-    silenceRatio: known ? round(silenceSec / durationSec, 3) : null,
+    maxVolumeDb: max,
+    silenceSec: measured ? round(silenceSec) : null,
+    silenceRatio: measured && known ? round(silenceSec / durationSec, 3) : null,
   };
 }
 
@@ -760,7 +772,7 @@ export async function analyzeVideos(
     const dir = framesDirFor(env.mediaDir, video.shortcode);
     if (!request.force && video.analyzedAt) {
       const stored = readFramesIndex(video.framesDir ?? dir);
-      if (stored && stored.frames.every((f) => existsSync(f.path))) {
+      if (stored?.frames.every((f) => existsSync(f.path))) {
         // A sheet asked for later is built from the frames already there.
         if (opts.sheet && !stored.sheet) {
           stored.sheet = await buildSheet(deps, stored.framesDir, stored.frames).catch(() => null);
