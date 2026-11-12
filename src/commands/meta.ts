@@ -2,6 +2,7 @@ import { accessSync, constants, mkdirSync } from "node:fs";
 import { z } from "zod";
 import { hasCommand } from "../cligentic/platform/detect.js";
 import { bold, danger, dim, muted, ok } from "../cligentic/platform/style.js";
+import { toolVersion } from "../core/analyze.js";
 import {
   type CommandDef,
   cliPath,
@@ -223,17 +224,22 @@ export function metaCommands(getAll: () => CommandDef[]) {
         "Optional fallback downloader. Install from https://github.com/yt-dlp/yt-dlp",
         false,
       );
-      add(
-        "ffprobe",
-        hasCommand("ffprobe"),
-        hasCommand("ffprobe") ? "found on PATH" : "not found",
-        "Optional: measures duration and size of downloaded videos. Install ffmpeg from https://ffmpeg.org/download.html",
-        false,
-      );
+      for (const tool of ["ffmpeg", "ffprobe"] as const) {
+        const version = toolVersion(tool);
+        add(
+          tool,
+          version !== null,
+          version ?? "not found",
+          "Optional: measures, analyzes and transcribes downloaded videos. Install from https://ffmpeg.org/download.html",
+          false,
+        );
+      }
 
       // Optional: transcription engines, and why one is not usable right now.
       if (configOk) {
-        for (const c of transcriptionChecks(ctx)) add(c.name, c.ok, c.detail, c.hint, false);
+        for (const c of transcriptionChecks(ctx)) {
+          if (c.name !== "ffmpeg") add(c.name, c.ok, c.detail, c.hint, false);
+        }
       }
 
       const healthy = checks.every((c) => c.ok || !c.required);
