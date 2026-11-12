@@ -2,6 +2,7 @@ import { isAbsolute, relative } from "node:path";
 import { z } from "zod";
 import { bold, danger, dim, muted, ok, warn } from "../cligentic/platform/style.js";
 import type { Context } from "../context.js";
+import { CAPTIONS_FLAG_HELP } from "../core/captions.js";
 import { type DownloadRequest, type DownloadSummary, downloadVideos } from "../core/download.js";
 import { MIN_VIDEOS_FOR_OUTLIER, rankVideos, sortVideos } from "../core/ranking.js";
 import { refreshCreator } from "../core/refresh.js";
@@ -312,6 +313,7 @@ const list = defineCommand({
     refresh: z.boolean().default(false).describe("Fetch the latest reels first"),
     backend: flags.backend,
     force: flags.force.describe("Refresh even if refreshed recently"),
+    captions: z.boolean().default(false).describe(`With --refresh: ${CAPTIONS_FLAG_HELP}`),
   }),
   output: z.array(StoredVideoSchema),
   network: true,
@@ -322,12 +324,18 @@ const list = defineCommand({
       .option("--limit <n>", "maximum results (default 20)")
       .option("--refresh", "fetch the latest reels first")
       .option("--backend <name>", "browser | hiker")
-      .option("--force", "refresh even if refreshed recently"),
+      .option("--force", "refresh even if refreshed recently")
+      .option("--captions", `with --refresh: ${CAPTIONS_FLAG_HELP}`),
   args: ([creator]) => ({ creator }),
   handler: async (input, ctx) => {
     if (input.force && !input.refresh) {
       throw new IgError("INVALID_INPUT", "--force only applies together with --refresh.", {
         hint: `Run \`ig video list ${normalizeUsername(input.creator)} --refresh --force\`.`,
+      });
+    }
+    if (input.captions && !input.refresh) {
+      throw new IgError("INVALID_INPUT", "--captions only applies together with --refresh.", {
+        hint: `Run \`ig video list ${normalizeUsername(input.creator)} --refresh --captions\`, or \`ig video captions --creator ${normalizeUsername(input.creator)}\` to fill stored reels only.`,
       });
     }
     const creator = ctx.store.getCreator(normalizeUsername(input.creator));
@@ -337,13 +345,21 @@ const list = defineCommand({
       const outcome = await refreshCreator(ctx, backend, creator, {
         reels: Math.max(input.limit, 15),
         force: input.force,
+        captions: input.captions,
       });
       meta.refresh = {
         status: outcome.status,
         reason: outcome.reason,
         newVideos: outcome.newVideos,
         totalVideos: outcome.totalVideos,
+        ...(outcome.captions ? { captions: outcome.captions } : {}),
       };
+      if (outcome.captions) {
+        const c = outcome.captions;
+        ctx.log(
+          `Captions: ${c.filled} filled with ${c.requests} extra request(s), ${c.missing} reel(s) still without.`,
+        );
+      }
       if (outcome.status === "skipped") ctx.log(`Not refreshed: ${outcome.reason}`);
     }
     const videos = ctx.store.listVideos({ creatorId: creator.id, limit: input.limit });
