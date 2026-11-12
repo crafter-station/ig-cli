@@ -35,7 +35,8 @@ import {
   type Tool,
 } from "./ffmpeg.js";
 import { median } from "./ranking.js";
-import { parseShortcode, type StoredVideo } from "./types.js";
+import { findStoredVideo } from "./targets.js";
+import type { StoredVideo } from "./types.js";
 
 // --- defaults ----------------------------------------------------------------
 
@@ -615,9 +616,8 @@ export async function analyzeVideos(
   const one = async (target: StoredVideo | string): Promise<AnalyzeItem> => {
     let video: StoredVideo | null;
     if (typeof target === "string") {
-      const shortcode = parseShortcode(target);
-      video =
-        env.store.findVideo(target.trim()) ?? (shortcode ? env.store.findVideo(shortcode) : null);
+      const { shortcode, video: found } = findStoredVideo(env.store, target);
+      video = found;
       if (!video) {
         return {
           id: null,

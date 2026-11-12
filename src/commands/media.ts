@@ -15,12 +15,13 @@ import {
   type GroupStats,
   tagStats,
 } from "../core/aggregate.js";
+import { sinceCutoff } from "../core/filters.js";
 import { type ProbeItem, probeVideos } from "../core/probe.js";
 import { MIN_VIDEOS_FOR_OUTLIER, rankVideos } from "../core/ranking.js";
+import { isSafeShortcode } from "../core/targets.js";
 import { normalizeUsername, type RankedVideo } from "../core/types.js";
 import { defineCommand, flags } from "../lib/command.js";
-import { IgError } from "../lib/errors.js";
-import { compact, duration, multiple, parseSince } from "../lib/format.js";
+import { compact, duration, multiple } from "../lib/format.js";
 import { type Meta, type NextStep, oneLine } from "../lib/output.js";
 import { type Column, printTable } from "../lib/table.js";
 
@@ -98,7 +99,7 @@ const probe = defineCommand({
       });
     }
     const gone = summary.items.find(
-      (i) => i.status === "missing-file" && /^[A-Za-z0-9_-]+$/.test(i.shortcode),
+      (i) => i.status === "missing-file" && isSafeShortcode(i.shortcode),
     );
     if (gone) {
       nextSteps.push({
@@ -187,16 +188,7 @@ type Scope = {
  * `--since` cut, exactly as in `ig video top`.
  */
 function nicheScope(ctx: Context, slug: string, since: string | undefined): Scope {
-  let cutoff: number | null = null;
-  if (since !== undefined) {
-    const iso = parseSince(since.trim());
-    if (!iso) {
-      throw new IgError("INVALID_INPUT", `--since is not a duration or a date: ${oneLine(since)}`, {
-        hint: "Use 12h, 30d, 2w, or a date such as 2026-10-01.",
-      });
-    }
-    cutoff = Date.parse(iso);
-  }
+  const cutoff = sinceCutoff(since);
   const niche = ctx.store.getNiche(slug);
   const creators = ctx.store.listCreators({ niche: niche.slug });
   const all = creators.length === 0 ? [] : ctx.store.listVideos({ niche: niche.slug });
@@ -440,7 +432,7 @@ const audio = defineCommand({
       });
     } else if (first) {
       const term =
-        first.id && /^[A-Za-z0-9_-]+$/.test(first.id)
+        first.id && isSafeShortcode(first.id)
           ? first.id
           : first.title && /^[\p{L}\p{N} _-]+$/u.test(first.title)
             ? JSON.stringify(first.title)

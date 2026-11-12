@@ -5,6 +5,8 @@
 import type { Command } from "commander";
 import { z } from "zod";
 import { IgError } from "../lib/errors.js";
+import { parseSince } from "../lib/format.js";
+import { oneLine } from "../lib/output.js";
 import type { StoredVideo } from "./types.js";
 
 export type VideoFilters = {
@@ -170,4 +172,19 @@ export function filterFlagsText(f: VideoFilters): string {
   if (f.minDuration !== undefined) parts.push(`--min-duration ${f.minDuration}`);
   if (f.maxDuration !== undefined) parts.push(`--max-duration ${f.maxDuration}`);
   return parts.length ? ` ${parts.join(" ")}` : "";
+}
+
+/**
+ * `--since`: 12h, 30d, 2w or a date, as the epoch milliseconds videos must be
+ * newer than. Null when the flag was not given.
+ */
+export function sinceCutoff(since: string | undefined): number | null {
+  if (since === undefined) return null;
+  const iso = parseSince(since.trim());
+  if (!iso) {
+    throw new IgError("INVALID_INPUT", `--since is not a duration or a date: ${oneLine(since)}`, {
+      hint: "Use 12h, 30d, 2w, or a date such as 2026-10-01.",
+    });
+  }
+  return Date.parse(iso);
 }

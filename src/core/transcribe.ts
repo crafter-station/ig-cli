@@ -32,7 +32,8 @@ import {
 } from "../transcribe/types.js";
 import { createWhisperCppEngine, whisperCppAvailability } from "../transcribe/whisper-cpp.js";
 import { lastLine, type MediaProbe, probeFile, type Runner, runTool } from "./ffmpeg.js";
-import { parseShortcode, type StoredVideo, type TranscriptSegment } from "./types.js";
+import { findStoredVideo } from "./targets.js";
+import type { StoredVideo, TranscriptSegment } from "./types.js";
 
 export type EngineChoice = EngineName | "auto";
 
@@ -302,9 +303,8 @@ export async function transcribeVideos(
   for (const target of request.targets) {
     let video: StoredVideo | null;
     if (typeof target === "string") {
-      const shortcode = parseShortcode(target);
-      video =
-        env.store.findVideo(target.trim()) ?? (shortcode ? env.store.findVideo(shortcode) : null);
+      const { shortcode, video: found } = findStoredVideo(env.store, target);
+      video = found;
       if (!video) {
         const known = shortcode ?? oneLine(target);
         summary.items.push({

@@ -26,7 +26,8 @@ import { bytes as formatBytes } from "../lib/format.js";
 import { errorLine as message, oneLine } from "../lib/output.js";
 import { safeSegment } from "../lib/paths.js";
 import { FFPROBE_HINT, type MediaInfo, probeDefaults } from "./probe.js";
-import { parseShortcode, reelUrl, type StoredVideo } from "./types.js";
+import { findStoredVideo } from "./targets.js";
+import { reelUrl, type StoredVideo } from "./types.js";
 
 export type DownloadItem = {
   id: string | null;
@@ -317,9 +318,8 @@ export async function downloadVideos(
     let fresh = false;
 
     if (typeof target === "string") {
-      const shortcode = parseShortcode(target);
-      video =
-        env.store.findVideo(target.trim()) ?? (shortcode ? env.store.findVideo(shortcode) : null);
+      const { shortcode, video: found } = findStoredVideo(env.store, target);
+      video = found;
       if (!video) {
         const unknown = {
           id: null,

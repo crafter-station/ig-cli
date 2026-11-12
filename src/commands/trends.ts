@@ -6,6 +6,7 @@ import { z } from "zod";
 import { bold, dim, muted, ok, warn } from "../cligentic/platform/style.js";
 import type { Context } from "../context.js";
 import { median, rankVideos } from "../core/ranking.js";
+import { isSafeShortcode } from "../core/targets.js";
 import {
   computeVelocities,
   creatorHistory,
@@ -272,7 +273,7 @@ const trending = defineCommand({
         description: "on a later day: a second snapshot is what makes velocity meaningful",
       });
     }
-    const first = rows.find((v) => /^[A-Za-z0-9_-]+$/.test(v.shortcode));
+    const first = rows.find((v) => isSafeShortcode(v.shortcode));
     if (first) {
       nextSteps.push({
         command: `ig video history ${first.shortcode}`,

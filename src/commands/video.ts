@@ -12,11 +12,13 @@ import {
   filterVideos,
   hasDurationFilter,
   hasFilters,
+  sinceCutoff,
   usedFilterFlags,
   type VideoFilters,
 } from "../core/filters.js";
 import { MIN_VIDEOS_FOR_OUTLIER, rankVideos, sortVideos } from "../core/ranking.js";
 import { refreshCreator } from "../core/refresh.js";
+import { isSafeShortcode, uniqueTargets } from "../core/targets.js";
 import { computeVelocities, DEFAULT_WINDOW, parseWindow } from "../core/trends.js";
 import {
   normalizeUsername,
@@ -30,7 +32,7 @@ import {
 } from "../core/types.js";
 import { defineCommand, flags } from "../lib/command.js";
 import { IgError } from "../lib/errors.js";
-import { ago, bytes, compact, duration, multiple, parseSince, percent } from "../lib/format.js";
+import { ago, bytes, compact, duration, multiple, percent } from "../lib/format.js";
 import { type Meta, type NextStep, oneLine } from "../lib/output.js";
 import { type Column, printTable } from "../lib/table.js";
 
@@ -61,17 +63,6 @@ export type TopResult = {
   /** Where to get data when the scope holds no videos at all. */
   emptySteps: NextStep[];
 };
-
-function sinceCutoff(since: string | undefined): number | null {
-  if (since === undefined) return null;
-  const iso = parseSince(since.trim());
-  if (!iso) {
-    throw new IgError("INVALID_INPUT", `--since is not a duration or a date: ${oneLine(since)}`, {
-      hint: "Use 12h, 30d, 2w, or a date such as 2026-10-01.",
-    });
-  }
-  return Date.parse(iso);
-}
 
 /**
  * Ranks over every stored video of the creators in scope (the median needs
@@ -641,7 +632,7 @@ const discover = defineCommand({
             : "track the authors found here",
       });
     }
-    const firstReel = data.find((v) => /^[A-Za-z0-9_-]+$/.test(v.shortcode));
+    const firstReel = data.find((v) => isSafeShortcode(v.shortcode));
     if (firstReel) {
       nextSteps.push({
         command: `ig video download ${firstReel.shortcode}`,
@@ -765,7 +756,7 @@ const download = defineCommand({
       targets = selection.videos;
       emptySteps = selection.emptySteps;
     } else {
-      targets = [...new Set(input.targets.map((t) => t.trim()).filter(Boolean))];
+      targets = uniqueTargets(input.targets);
     }
 
     const summary = await downloadVideos(
