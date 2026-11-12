@@ -24,6 +24,7 @@ import type { Store } from "../db/store.js";
 import { EXIT, IgError } from "../lib/errors.js";
 import { bytes as formatBytes } from "../lib/format.js";
 import { oneLine } from "../lib/output.js";
+import { FFPROBE_HINT, type MediaInfo, probeDefaults } from "./probe.js";
 import { parseShortcode, reelUrl, type StoredVideo } from "./types.js";
 
 export type DownloadItem = {
@@ -43,6 +44,10 @@ export type DownloadSummary = {
   bytes: number;
   dir: string;
   items: DownloadItem[];
+  /** Downloaded files whose duration and dimensions were measured and stored. */
+  measured: number;
+  /** Things that did not fail the run but the caller should know. */
+  warnings: string[];
 };
 
 export type FetchLike = (url: string, init?: { signal?: AbortSignal }) => Promise<Response>;
@@ -56,6 +61,10 @@ export type DownloadDeps = {
   hasYtDlp: () => boolean;
   /** Downloads `url` to `dest` with yt-dlp. Rejects on failure. */
   ytDlp: (url: string, dest: string) => Promise<void>;
+  /** Whether a downloaded file can be measured at all. */
+  hasFfprobe: () => boolean;
+  /** Measures duration and dimensions of a local file. Rejects on failure. */
+  ffprobe: (path: string) => Promise<MediaInfo>;
 };
 
 export type DownloadEnv = {
@@ -134,6 +143,8 @@ const defaults: DownloadDeps = {
   pause: realPause,
   hasYtDlp: () => hasCommand("yt-dlp"),
   ytDlp: runYtDlp,
+  hasFfprobe: probeDefaults.hasFfprobe,
+  ffprobe: probeDefaults.ffprobe,
 };
 
 /** Usernames and shortcodes come from upstream; never let one steer the path. */
@@ -228,6 +239,8 @@ export async function downloadVideos(
     bytes: 0,
     dir,
     items: [],
+    measured: 0,
+    warnings: [],
   };
   const total = request.targets.length;
   let networkUsed = false;
@@ -238,6 +251,28 @@ export async function downloadVideos(
     item.paused = true;
     if (networkUsed) await deps.pause();
     networkUsed = true;
+  };
+
+  /**
+   * Stores what ffprobe says about a file just downloaded. Never fails the
+   * item: the video is on disk either way, and `ig video probe` can retry.
+   */
+  const measure = async (video: StoredVideo, dest: string): Promise<void> => {
+    if (!deps.hasFfprobe()) {
+      if (summary.warnings.length === 0) {
+        // Said once, in the result; the command's human view prints it.
+        summary.warnings.push(
+          `ffprobe is not installed, so duration and dimensions were not measured. ${FFPROBE_HINT}`,
+        );
+      }
+      return;
+    }
+    try {
+      env.store.setVideoMedia(video.id, await deps.ffprobe(dest));
+      summary.measured++;
+    } catch (err) {
+      env.log(`${video.creatorUsername}/${video.shortcode} could not be measured: ${message(err)}`);
+    }
   };
 
   /** Bytes on success, or the reasons every route failed. Throws only to stop the batch. */
@@ -399,6 +434,7 @@ export async function downloadVideos(
       return { ...base, status: "failed", reason: result.reason, path: null, bytes: null };
     }
     env.store.markDownloaded(video.id, dest);
+    await measure(video, dest);
     return { ...base, status: "downloaded", reason: null, path: dest, bytes: result.bytes };
   };
 

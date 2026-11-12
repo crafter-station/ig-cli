@@ -61,13 +61,14 @@ type Harness = {
   logs: string[];
   pauses: number;
   ytDlpCalls: [string, string][];
+  probed: string[];
   run: (
     targets: DownloadRequest["targets"],
     opts?: Partial<DownloadRequest>,
   ) => Promise<DownloadSummary>;
 };
 
-/** Injected fetch, pause and yt-dlp: no network, no waiting, no binary. */
+/** Injected fetch, pause, yt-dlp and ffprobe: no network, no waiting, no binary. */
 function harness(
   respond: (url: string) => Response | Promise<Response>,
   over: Partial<DownloadDeps> = {},
@@ -78,6 +79,7 @@ function harness(
     logs: [],
     pauses: 0,
     ytDlpCalls: [],
+    probed: [],
     run: (targets, opts = {}) =>
       downloadVideos(
         { store: env.ctx.store, log: (m) => h.logs.push(m), backend: async () => env.backend },
@@ -94,6 +96,11 @@ function harness(
           ytDlp: async (url, dest) => {
             h.ytDlpCalls.push([url, dest]);
             throw new Error("no binary in tests");
+          },
+          hasFfprobe: () => true,
+          ffprobe: async (path) => {
+            h.probed.push(path);
+            return { durationSec: 12.345, width: 720, height: 1280 };
           },
           ...over,
         },
@@ -135,6 +142,8 @@ describe("downloadVideos", () => {
           bytes: 3000,
         },
       ],
+      measured: 1,
+      warnings: [],
     });
     expect(h.urls).toEqual([`${OLD}/10`]);
     expect(env.backend.calls).toEqual([]);
@@ -540,6 +549,7 @@ describe("downloadVideos", () => {
           },
           pause: async () => {},
           hasYtDlp: () => false,
+          hasFfprobe: () => false,
         },
       );
       await expect(run).rejects.toMatchObject({
@@ -602,6 +612,79 @@ describe("downloadVideos", () => {
     }
   });
 
+  describe("measuring the downloaded file", () => {
+    it("stores duration and dimensions of each downloaded file", async () => {
+      env = setup([reel("10", { durationSec: null }), reel("11", { durationSec: null })]);
+      const h = harness(() => mp4());
+      const result = await h.run(["sc10", "sc11"]);
+      expect(result).toMatchObject({ downloaded: 2, measured: 2, warnings: [] });
+      expect(h.probed).toEqual([join(h.dir, "ana", "sc10.mp4"), join(h.dir, "ana", "sc11.mp4")]);
+      expect(env.ctx.store.findVideo("10")).toMatchObject({
+        durationSec: 12.345,
+        width: 720,
+        height: 1280,
+      });
+    });
+
+    it("a measurement that comes back empty leaves stored values alone", async () => {
+      env = setup([reel("10", { durationSec: 30 })]);
+      const h = harness(() => mp4(), {
+        ffprobe: async () => ({ durationSec: null, width: 1080, height: null }),
+      });
+      await h.run(["sc10"]);
+      expect(env.ctx.store.findVideo("10")).toMatchObject({
+        durationSec: 30,
+        width: 1080,
+        height: null,
+      });
+    });
+
+    it("a probe failure is logged and does not fail the item", async () => {
+      env = setup([reel("10", { durationSec: null })]);
+      const h = harness(() => mp4(), {
+        ffprobe: async () => {
+          throw new Error("moov atom not found\x1b[2J");
+        },
+      });
+      const result = await h.run(["sc10"]);
+      expect(result).toMatchObject({ downloaded: 1, failed: 0, measured: 0, warnings: [] });
+      expect(result.items[0]).toMatchObject({ status: "downloaded", reason: null });
+      expect(env.ctx.store.findVideo("10")).toMatchObject({
+        localPath: join(h.dir, "ana", "sc10.mp4"),
+        durationSec: null,
+        width: null,
+      });
+      expect(h.logs[0]).toBe("ana/sc10 could not be measured: moov atom not found");
+    });
+
+    it("without ffprobe nothing is recorded and the batch says so once", async () => {
+      env = setup([reel("10", { durationSec: null }), reel("11"), reel("12")]);
+      const h = harness(() => mp4(), { hasFfprobe: () => false });
+      const result = await h.run(["sc10", "sc11", "sc12"]);
+      expect(result).toMatchObject({ downloaded: 3, failed: 0, measured: 0 });
+      expect(result.warnings).toHaveLength(1);
+      expect(result.warnings[0]).toContain("ffprobe is not installed");
+      expect(result.warnings[0]).toContain("ig video probe");
+      expect(h.logs.filter((l) => l.includes("ffprobe"))).toHaveLength(0);
+      expect(h.probed).toEqual([]);
+      expect(env.ctx.store.findVideo("10")).toMatchObject({ durationSec: null, width: null });
+    });
+
+    it("measures nothing on a skip, a failure or a dry run", async () => {
+      env = setup([reel("10"), reel("11"), reel("12")]);
+      await harness(() => mp4()).run(["sc10"]);
+
+      const h = harness((url) => (url.endsWith("/12") ? status(500) : mp4()), {
+        hasFfprobe: () => false,
+      });
+      const skipped = await h.run(["sc10", "sc12"]);
+      expect(skipped).toMatchObject({ skipped: 1, failed: 1, measured: 0, warnings: [] });
+      const planned = await h.run(["sc11"], { dryRun: true });
+      expect(planned).toMatchObject({ measured: 0, warnings: [] });
+      expect(h.probed).toEqual([]);
+    });
+  });
+
   it("an empty batch is an empty summary", async () => {
     env = setup([]);
     const h = harness(() => mp4());
@@ -612,6 +695,8 @@ describe("downloadVideos", () => {
       bytes: 0,
       dir: h.dir,
       items: [],
+      measured: 0,
+      warnings: [],
     });
   });
 });
@@ -756,6 +841,8 @@ describe("video download command", () => {
       failed: 1,
       bytes: 1_572_864,
       dir: root,
+      measured: 0,
+      warnings: [],
       items: [
         {
           id: "1",
