@@ -36,7 +36,8 @@ export type CreatorSnapshot = {
 
 /** `--window`: the syntax of `--since` (12h, 7d, 2w or a date), as milliseconds. */
 export function parseWindow(value: string, now = Date.now()): number {
-  const iso = parseSince(value.trim(), now);
+  // A bare number is a forgotten unit, not the year or month Date.parse makes of it.
+  const iso = /^\d+$/.test(value.trim()) ? null : parseSince(value.trim(), now);
   const ms = iso === null ? Number.NaN : now - Date.parse(iso);
   if (!(ms >= MIN_SPAN_MS)) {
     throw new IgError("INVALID_INPUT", "--window is not a duration or a past date.", {
