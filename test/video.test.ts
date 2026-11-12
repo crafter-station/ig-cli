@@ -575,3 +575,151 @@ describe("video discover", () => {
     expect(human(discover, []).err).toContain("no reels");
   });
 });
+
+describe("video filters: --hashtag, --mention, --audio, --min/--max-duration", () => {
+  const download = byId(defs, "video.download");
+  const original = { id: "au1", title: "Sonido Original", artist: "ana", isOriginal: true };
+  const song = { id: "au2", title: "Despacito", artist: "Luis Fonsi", isOriginal: false };
+
+  /** Captions, sounds and lengths on top of the usual seed; a6 was never measured. */
+  function tagged(): TestEnv {
+    const e = seeded();
+    const of = (list: Video[], i: number) => list[i] as Video;
+    e.ctx.store.upsertVideos([
+      {
+        ...of(anaVideos, 0),
+        caption: "Pasta #Receta #pasta con @Beto",
+        durationSec: 10,
+        audio: original,
+      },
+      { ...of(anaVideos, 1), caption: "#receta rápida", durationSec: 20, audio: song },
+      { ...of(anaVideos, 2), caption: "#pan @cata", durationSec: 45 },
+      { ...of(anaVideos, 3), caption: "sin nada", durationSec: 70, audio: song },
+      { ...of(betoVideos, 0), caption: "#PAN de casa @beto.oficial", durationSec: 25 },
+      a("a6", {
+        takenAt: "2026-02-11T00:00:00.000Z",
+        plays: 50,
+        caption: "#receta sin medir",
+        durationSec: null,
+      }),
+    ]);
+    return e;
+  }
+
+  const sorted = (rows: { id: string }[]) => ids(rows).sort();
+
+  it("top: one hashtag, case-insensitive and with or without #", async () => {
+    env = tagged();
+    expect(sorted((await runTop({ hashtag: "receta" })).data)).toEqual(["a1", "a2", "a6"]);
+    expect(sorted((await runTop({ hashtag: "#RECETA" })).data)).toEqual(["a1", "a2", "a6"]);
+    expect(sorted((await runTop({ hashtag: "pan" })).data)).toEqual(["a3", "b1"]);
+  });
+
+  it("top: several values of one flag match any, as a list or comma-separated", async () => {
+    env = tagged();
+    const any = ["a1", "a2", "a3", "a6", "b1"];
+    expect(sorted((await runTop({ hashtag: ["#Receta", "PAN"] })).data)).toEqual(any);
+    expect(sorted((await runTop({ hashtag: "receta, pan" })).data)).toEqual(any);
+  });
+
+  it("top: different flags combine with AND, and medians keep the full set", async () => {
+    env = tagged();
+    const { data, nextSteps } = await runTop({ hashtag: "receta", mention: "@BETO" });
+    expect(ids(data)).toEqual(["a1"]);
+    // Ana's median over 1000, 100, 100, 300 and 50 plays is 100.
+    expect(data[0]).toMatchObject({ outlierScore: 10, creatorMedianPlays: 100 });
+    expect(nextSteps?.[0]?.command).toBe(
+      "ig video download --top 1 --hashtag receta --mention beto",
+    );
+    expect(sorted((await runTop({ mention: "beto.oficial,cata" })).data)).toEqual(["a3", "b1"]);
+  });
+
+  it("top: --audio matches an exact id or part of the title or artist", async () => {
+    env = tagged();
+    expect(sorted((await runTop({ audio: "au2" })).data)).toEqual(["a2", "a4"]);
+    expect(sorted((await runTop({ audio: "fonsi" })).data)).toEqual(["a2", "a4"]);
+    expect(sorted((await runTop({ audio: "ORIGINAL" })).data)).toEqual(["a1"]);
+    expect((await runTop({ audio: "au" })).data).toEqual([]);
+  });
+
+  it("top: duration bounds are inclusive and never match an unmeasured video", async () => {
+    env = tagged();
+    const between = await runTop({ minDuration: 20, maxDuration: 45 });
+    expect(sorted(between.data)).toEqual(["a2", "a3", "a5", "b1", "b2"]);
+    expect(between.meta?.withoutDuration).toBe(1);
+
+    const { data, meta, nextSteps } = await runTop({
+      niche: "cocina",
+      hashtag: "receta",
+      minDuration: "15",
+    });
+    expect(ids(data)).toEqual(["a2"]);
+    expect(meta?.withoutDuration).toBe(1);
+    expect(nextSteps?.map((s) => s.command)).toEqual([
+      "ig video download --top 1 --niche cocina --hashtag receta --min-duration 15",
+      "ig video probe --niche cocina",
+    ]);
+    // Without a duration filter the count is not reported.
+    expect((await runTop({ hashtag: "receta" })).meta).not.toHaveProperty("withoutDuration");
+  });
+
+  it("rejects min above max and a flag that names nothing, before any work", async () => {
+    env = testEnv();
+    await expect(runTop({ minDuration: 30, maxDuration: 10 })).rejects.toMatchObject({
+      code: "INVALID_INPUT",
+      hint: expect.stringContaining("--min-duration"),
+    });
+    await expect(runTop({ hashtag: "#, ," })).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    await expect(runTop({ mention: ["@"] })).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    await expect(runTop({ minDuration: -1 })).rejects.toMatchObject({ code: "INVALID_INPUT" });
+  });
+
+  it("list: filters before the limit, and says when filters emptied the result", async () => {
+    env = tagged();
+    const one = await env.run(list, { creator: "ana", hashtag: "pan", limit: 1 });
+    expect(ids(one.data as StoredVideo[])).toEqual(["a3"]);
+    const two = await env.run(list, { creator: "ana", hashtag: "receta", limit: 2 });
+    expect(ids(two.data as StoredVideo[])).toEqual(["a6", "a2"]);
+
+    const none = await env.run(list, { creator: "ana", hashtag: "nada" });
+    expect(none.data).toEqual([]);
+    expect(none.meta?.filteredOut).toBe(6);
+    expect(none.nextSteps?.map((s) => s.command)).toEqual(["ig video list ana"]);
+    expect(human(list, [], none.meta as Meta).err).toContain("6 stored reels match these filters");
+    await expect(
+      env.run(list, { creator: "ana", minDuration: 9, maxDuration: 1 }),
+    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    expect(env.backend.calls).toEqual([]);
+  });
+
+  it("search: filters the matches before the limit", async () => {
+    env = tagged();
+    const run = async (input: Record<string, unknown>) => {
+      const result = await env.run(search, input);
+      return { ...result, data: result.data as StoredVideo[] };
+    };
+    expect(sorted((await run({ query: "receta" })).data)).toEqual(["a1", "a2", "a6"]);
+    expect(ids((await run({ query: "receta", mention: "beto" })).data)).toEqual(["a1"]);
+    expect(ids((await run({ query: "receta", audio: "au2", limit: 1 })).data)).toEqual(["a2"]);
+
+    const none = await run({ query: "receta", hashtag: "pan" });
+    expect(none.data).toEqual([]);
+    expect(none.meta?.filteredOut).toBe(3);
+    expect(human(search, [], none.meta as Meta).err).toContain("none pass these filters");
+  });
+
+  it("download --top selects with the same filters; without --top they are rejected", async () => {
+    env = tagged();
+    const { data, nextSteps } = await env.run(download, { top: 5, hashtag: "pan", dryRun: true });
+    const items = (data as { items: { shortcode: string; status: string }[] }).items;
+    expect(items.map((i) => i.shortcode).sort()).toEqual(["a3", "b1"]);
+    expect(items.every((i) => i.status === "would-download")).toBe(true);
+    expect(nextSteps?.map((s) => s.command)).toEqual(["ig video download --top 5 --hashtag pan"]);
+
+    await expect(env.run(download, { targets: ["a1"], hashtag: "pan" })).rejects.toMatchObject({
+      code: "INVALID_INPUT",
+      message: expect.stringContaining("--hashtag"),
+    });
+    expect(env.backend.calls).toEqual([]);
+  });
+});

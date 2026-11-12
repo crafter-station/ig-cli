@@ -3,6 +3,17 @@ import { z } from "zod";
 import { bold, danger, dim, muted, ok, warn } from "../cligentic/platform/style.js";
 import type { Context } from "../context.js";
 import { type DownloadRequest, type DownloadSummary, downloadVideos } from "../core/download.js";
+import {
+  addFilterOptions,
+  checkFilters,
+  filterFlags,
+  filterFlagsText,
+  filterVideos,
+  hasDurationFilter,
+  hasFilters,
+  usedFilterFlags,
+  type VideoFilters,
+} from "../core/filters.js";
 import { MIN_VIDEOS_FOR_OUTLIER, rankVideos, sortVideos } from "../core/ranking.js";
 import { refreshCreator } from "../core/refresh.js";
 import {
@@ -31,7 +42,7 @@ export type TopSelection = {
   since?: string;
   minPlays?: number;
   perCreator?: number;
-};
+} & VideoFilters;
 
 export type TopResult = {
   videos: RankedVideo[];
@@ -42,6 +53,8 @@ export type TopResult = {
     creatorsConsidered: number;
     creatorsBelowOutlierMinimum: number;
     outlierMinimumVideos: number;
+    /** With a duration filter: videos it could not judge because nothing measured them. */
+    withoutDuration?: number;
   };
   /** Where to get data when the scope holds no videos at all. */
   emptySteps: NextStep[];
@@ -65,6 +78,7 @@ function sinceCutoff(since: string | undefined): number | null {
 export function selectTop(ctx: Context, sel: TopSelection): TopResult {
   // Bad input fails before any work, including on an empty database.
   const cutoff = sinceCutoff(sel.since);
+  checkFilters(sel);
   if (sel.niche) ctx.store.getNiche(sel.niche);
 
   let creators: StoredCreator[];
@@ -93,6 +107,12 @@ export function selectTop(ctx: Context, sel: TopSelection): TopResult {
   if (cutoff !== null) {
     videos = videos.filter((v) => v.takenAt !== null && Date.parse(v.takenAt) >= cutoff);
   }
+  const withoutDuration = hasDurationFilter(sel)
+    ? filterVideos(videos, { ...sel, minDuration: undefined, maxDuration: undefined }).filter(
+        (v) => v.durationSec === null,
+      ).length
+    : undefined;
+  videos = filterVideos(videos, sel);
   if (sel.minPlays !== undefined) {
     const min = sel.minPlays;
     videos = videos.filter((v) => v.plays !== null && v.plays >= min);
@@ -141,6 +161,7 @@ export function selectTop(ctx: Context, sel: TopSelection): TopResult {
         (c) => (withPlays.get(c.id) ?? 0) < MIN_VIDEOS_FOR_OUTLIER,
       ).length,
       outlierMinimumVideos: MIN_VIDEOS_FOR_OUTLIER,
+      ...(withoutDuration ? { withoutDuration } : {}),
     },
     emptySteps,
   };
@@ -154,7 +175,7 @@ function selectionFlags(sel: Omit<TopSelection, "limit">): string {
   if (sel.sort !== "outlier") parts.push(`--sort ${sel.sort}`);
   if (sel.since) parts.push(`--since ${sel.since.trim()}`);
   if (sel.perCreator !== undefined) parts.push(`--per-creator ${sel.perCreator}`);
-  return parts.length ? ` ${parts.join(" ")}` : "";
+  return `${parts.length ? ` ${parts.join(" ")}` : ""}${filterFlagsText(sel)}`;
 }
 
 // --- human views -------------------------------------------------------------
@@ -293,6 +314,9 @@ function printDownload(data: DownloadSummary): void {
   ].join(", ");
   const size = data.downloaded > 0 ? ` ${muted("·")} ${bytes(data.bytes)}` : "";
   process.stdout.write(`\n${counts}${size} ${muted("·")} ${data.dir}\n`);
+  for (const warning of new Set(data.warnings)) {
+    process.stderr.write(`${warn("note")} ${oneLine(warning)}\n`);
+  }
 }
 
 /** The directory is printed once in the total; rows show the path below it. */
@@ -312,19 +336,23 @@ const list = defineCommand({
     refresh: z.boolean().default(false).describe("Fetch the latest reels first"),
     backend: flags.backend,
     force: flags.force.describe("Refresh even if refreshed recently"),
+    ...filterFlags,
   }),
   output: z.array(StoredVideoSchema),
   network: true,
   writes: "local",
   configure: (cmd) =>
-    cmd
-      .argument("<creator>")
-      .option("--limit <n>", "maximum results (default 20)")
-      .option("--refresh", "fetch the latest reels first")
-      .option("--backend <name>", "browser | hiker")
-      .option("--force", "refresh even if refreshed recently"),
+    addFilterOptions(
+      cmd
+        .argument("<creator>")
+        .option("--limit <n>", "maximum results (default 20)")
+        .option("--refresh", "fetch the latest reels first")
+        .option("--backend <name>", "browser | hiker")
+        .option("--force", "refresh even if refreshed recently"),
+    ),
   args: ([creator]) => ({ creator }),
   handler: async (input, ctx) => {
+    checkFilters(input);
     if (input.force && !input.refresh) {
       throw new IgError("INVALID_INPUT", "--force only applies together with --refresh.", {
         hint: `Run \`ig video list ${normalizeUsername(input.creator)} --refresh --force\`.`,
@@ -346,14 +374,25 @@ const list = defineCommand({
       };
       if (outcome.status === "skipped") ctx.log(`Not refreshed: ${outcome.reason}`);
     }
-    const videos = ctx.store.listVideos({ creatorId: creator.id, limit: input.limit });
+    // Filters apply before the limit, so `--limit 5` means five matches.
+    const stored = ctx.store.listVideos({
+      creatorId: creator.id,
+      limit: hasFilters(input) ? undefined : input.limit,
+    });
+    const videos = filterVideos(stored, input).slice(0, input.limit);
+    if (videos.length === 0 && stored.length > 0) meta.filteredOut = stored.length;
     const nextSteps: NextStep[] =
       videos.length === 0
         ? [
-            {
-              command: `ig video list ${creator.username} --refresh`,
-              description: "fetch this creator's latest reels",
-            },
+            meta.filteredOut
+              ? {
+                  command: `ig video list ${creator.username}`,
+                  description: `all ${stored.length} stored reels, without the filters`,
+                }
+              : {
+                  command: `ig video list ${creator.username} --refresh`,
+                  description: "fetch this creator's latest reels",
+                },
           ]
         : [
             {
@@ -363,11 +402,13 @@ const list = defineCommand({
           ];
     return { data: videos, meta, nextSteps };
   },
-  human: (data) =>
+  human: (data, _ctx, meta) =>
     printVideos(data, {
       metrics: storedMetrics(),
       ageSorted: true,
-      empty: "No reels stored for this creator. Add --refresh to fetch them.",
+      empty: meta.filteredOut
+        ? `None of this creator's ${meta.filteredOut} stored reels match these filters.`
+        : "No reels stored for this creator. Add --refresh to fetch them.",
     }),
 });
 
@@ -391,12 +432,13 @@ const top = defineCommand({
       .min(1)
       .optional()
       .describe("At most this many videos per creator"),
+    ...filterFlags,
   }),
   output: z.array(RankedVideoSchema),
   network: false,
   writes: "none",
   configure: (cmd) =>
-    cmd
+    addFilterOptions(cmd)
       .option("--niche <slug>", "only this niche")
       .option("--creator <username>", "only this creator")
       .option("--sort <key>", "outlier | plays | engagement | likes | comments | recent")
@@ -414,7 +456,14 @@ const top = defineCommand({
               description: "download the best of these",
             },
           ]
-        : result.emptySteps;
+        : [...result.emptySteps];
+    if (result.meta.withoutDuration) {
+      const scope = `${input.niche ? ` --niche ${input.niche}` : ""}${input.creator ? ` --creator ${normalizeUsername(input.creator)}` : ""}`;
+      nextSteps.push({
+        command: `ig video probe${scope}`,
+        description: `${result.meta.withoutDuration} video(s) have no measured duration; measure the downloaded ones`,
+      });
+    }
     return { data: result.videos, meta: result.meta, nextSteps };
   },
   human: (data, _ctx, meta) => {
@@ -449,23 +498,34 @@ const search = defineCommand({
     query: z.string().min(1),
     niche: flags.niche,
     limit: flags.limit(20),
+    ...filterFlags,
   }),
   output: z.array(StoredVideoSchema),
   network: false,
   writes: "none",
   configure: (cmd) =>
-    cmd
-      .argument("<query>")
-      .option("--niche <slug>", "only this niche")
-      .option("--limit <n>", "maximum results (default 20)"),
+    addFilterOptions(
+      cmd
+        .argument("<query>")
+        .option("--niche <slug>", "only this niche")
+        .option("--limit <n>", "maximum results (default 20)"),
+    ),
   args: ([query]) => ({ query }),
   handler: async (input, ctx) => {
+    checkFilters(input);
     if (!/[\p{L}\p{N}_]/u.test(input.query)) {
       throw new IgError("INVALID_INPUT", "The query has no searchable word.", {
         hint: 'Search for words from a caption, e.g. `ig video search "pasta receta"`.',
       });
     }
-    const videos = ctx.store.searchVideos(input.query, { niche: input.niche, limit: input.limit });
+    // Filters apply before the limit, so the search reads deeper when one is set.
+    const matches = ctx.store.searchVideos(input.query, {
+      niche: input.niche,
+      limit: hasFilters(input) ? 500 : input.limit,
+    });
+    const videos = filterVideos(matches, input).slice(0, input.limit);
+    const meta: Meta = {};
+    if (videos.length === 0 && matches.length > 0) meta.filteredOut = matches.length;
     const words = (input.query.match(/[\p{L}\p{N}_]+/gu) ?? []).join(" ");
     const nextSteps: NextStep[] =
       videos.length === 0
@@ -476,12 +536,14 @@ const search = defineCommand({
             },
           ]
         : [];
-    return { data: videos, nextSteps };
+    return { data: videos, meta, nextSteps };
   },
-  human: (data) =>
+  human: (data, _ctx, meta) =>
     printVideos(data, {
       metrics: storedMetrics(),
-      empty: "No stored caption matches every word of that query.",
+      empty: meta.filteredOut
+        ? `${meta.filteredOut} stored caption(s) match that query, but none pass these filters.`
+        : "No stored caption matches every word of that query.",
     }),
 });
 
@@ -593,6 +655,7 @@ const download = defineCommand({
     sort: SortKey.default("outlier").describe("With --top: ranking"),
     since: z.string().optional().describe("With --top: only videos newer than this"),
     perCreator: z.coerce.number().int().min(1).optional().describe("With --top: cap per creator"),
+    ...filterFlags,
     out: z.string().optional().describe("Directory to write to. Defaults to mediaDir"),
     backend: flags.backend,
     force: flags.force.describe("Download again even if the file exists"),
@@ -605,11 +668,16 @@ const download = defineCommand({
     bytes: z.number().int(),
     dir: z.string(),
     items: z.array(DownloadItemSchema),
+    measured: z
+      .number()
+      .int()
+      .describe("Files whose duration and dimensions were read with ffprobe in this run"),
+    warnings: z.array(z.string()).describe("Things that did not stop the run, e.g. no ffprobe"),
   }),
   network: true,
   writes: "local",
   configure: (cmd) =>
-    cmd
+    addFilterOptions(cmd, "with --top: ")
       .argument("[targets...]", "video ids, shortcodes or reel URLs")
       .option("--top <n>", "download the top N stored videos instead")
       .option("--niche <slug>", "with --top: only this niche")
@@ -644,6 +712,7 @@ const download = defineCommand({
         input.creator !== undefined && "--creator",
         input.since !== undefined && "--since",
         input.perCreator !== undefined && "--per-creator",
+        ...usedFilterFlags(input),
       ].filter((f) => f !== false);
       if (stray.length > 0) {
         throw new IgError("INVALID_INPUT", `${stray.join(", ")} only applies with --top.`, {
