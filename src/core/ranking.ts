@@ -1,7 +1,7 @@
 // "Trending for a creator" means a video that did unusually well *for them*,
 // not a video with a big absolute number because the account is big.
 
-import type { RankedVideo, SortKey, StoredVideo } from "./types.js";
+import type { RankedVideo, SortKey, StoredVideo, VelocityFields } from "./types.js";
 
 export function median(values: number[]): number | null {
   if (values.length === 0) return null;
@@ -20,11 +20,13 @@ export type CreatorStats = { followers: number | null };
 /**
  * Attaches per-creator relative metrics. The median is computed over the
  * videos passed in, so callers should pass every stored video for the
- * creators involved, not a pre-filtered slice.
+ * creators involved, not a pre-filtered slice. `velocities` (by video id, from
+ * `computeVelocities`) fills the velocity fields; without it they are null.
  */
 export function rankVideos(
   videos: StoredVideo[],
   creators: Map<string, CreatorStats>,
+  velocities?: Map<string, VelocityFields>,
 ): RankedVideo[] {
   const playsByCreator = new Map<string, number[]>();
   for (const v of videos) {
@@ -47,12 +49,16 @@ export function rankVideos(
       followers !== null && followers > 0 && v.likes !== null
         ? round(((v.likes ?? 0) + (v.comments ?? 0)) / followers, 4)
         : null;
+    const velocity = velocities?.get(v.id);
     return {
       ...v,
       outlierScore,
       engagementRate,
       creatorFollowers: followers,
       creatorMedianPlays: med,
+      velocity: velocity?.velocity ?? null,
+      velocityBasis: velocity?.velocityBasis ?? null,
+      velocityScore: velocity?.velocityScore ?? null,
     };
   });
 }
@@ -76,6 +82,8 @@ function metric(v: RankedVideo, key: SortKey): number | null {
       return v.comments;
     case "recent":
       return v.takenAt ? Date.parse(v.takenAt) : null;
+    case "velocity":
+      return v.velocityScore;
   }
 }
 
@@ -84,7 +92,11 @@ export function sortVideos(videos: RankedVideo[], key: SortKey): RankedVideo[] {
   return [...videos].sort((a, b) => {
     const ma = metric(a, key);
     const mb = metric(b, key);
-    if (ma === null && mb === null) return (b.plays ?? -1) - (a.plays ?? -1);
+    if (ma === null && mb === null) {
+      // Without a score the raw rate still orders the tail better than total plays.
+      if (key === "velocity") return (b.velocity ?? -1) - (a.velocity ?? -1);
+      return (b.plays ?? -1) - (a.plays ?? -1);
+    }
     if (ma === null) return 1;
     if (mb === null) return -1;
     return mb - ma;
