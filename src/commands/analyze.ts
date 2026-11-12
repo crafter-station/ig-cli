@@ -18,25 +18,17 @@ import {
   readFramesIndex,
 } from "../core/analyze.js";
 import { median, rankVideos } from "../core/ranking.js";
-import {
-  normalizeUsername,
-  parseShortcode,
-  type RankedVideo,
-  SortKey,
-  type StoredVideo,
-} from "../core/types.js";
+import { findStoredVideo, isSafeShortcode } from "../core/targets.js";
+import type { RankedVideo } from "../core/types.js";
 import { defineCommand, flags } from "../lib/command.js";
 import { IgError } from "../lib/errors.js";
 import { compact, duration, multiple } from "../lib/format.js";
 import { type NextStep, oneLine } from "../lib/output.js";
 import { printTable, renderRecord } from "../lib/table.js";
-import { selectTop } from "./video.js";
+import { addSelectionOptions, resolveSelection, selectionFlags } from "./selection.js";
 
 /** Tests replace the ffmpeg runner here; the CLI leaves it empty. */
 export const analyzeSeams: { deps: Partial<AnalyzeDeps> } = { deps: {} };
-
-/** Only well-formed shortcodes are ever put into a suggested command. */
-const SAFE_SHORTCODE = /^[A-Za-z0-9_-]+$/;
 
 const seconds = (n: number | null | undefined): string =>
   n === null || n === undefined ? "–" : `${n < 10 ? n.toFixed(1) : Math.round(n)}s`;
@@ -127,12 +119,7 @@ const analyze = defineCommand({
     "Give shortcodes, or select: --top N (ranked), --niche / --creator (every\n" +
     "downloaded video in scope), --all-downloaded.",
   input: z.object({
-    targets: z.array(z.string()).default([]).describe("Video ids, shortcodes or reel URLs"),
-    top: z.coerce.number().int().min(1).max(500).optional().describe("The top N ranked videos"),
-    niche: flags.niche.describe("Only this niche"),
-    creator: z.string().optional().describe("Only this creator"),
-    sort: SortKey.default("outlier").describe("With --top: ranking"),
-    allDownloaded: z.boolean().default(false).describe("Every downloaded video"),
+    ...selectionFlags,
     force: flags.force.describe("Analyze again even if already analyzed"),
     threshold: z.coerce
       .number()
@@ -166,16 +153,7 @@ const analyze = defineCommand({
   network: false,
   writes: "local",
   configure: (cmd) =>
-    cmd
-      .argument("[targets...]", "video ids, shortcodes or reel URLs")
-      .option("--top <n>", "the top N stored videos by --sort")
-      .option("--niche <slug>", "only this niche")
-      .option("--creator <username>", "only this creator")
-      .option(
-        "--sort <key>",
-        "with --top: outlier | plays | engagement | likes | comments | recent",
-      )
-      .option("--all-downloaded", "every downloaded video")
+    addSelectionOptions(cmd)
       .option("--force", "analyze again even if already analyzed")
       .option("--threshold <score>", `scene score for a cut, 0 to 1 (default ${DEFAULT_THRESHOLD})`)
       .option(
@@ -187,54 +165,13 @@ const analyze = defineCommand({
       .option("--sheet", "also tile the frames into one contact sheet"),
   args: ([targets]) => ({ targets }),
   handler: async (input, ctx) => {
-    const example =
-      "Run `ig video analyze <shortcode>...`, `ig video analyze --top 10 --niche <slug>` or `ig video analyze --all-downloaded`.";
-    const selecting =
-      input.top !== undefined ||
-      input.niche !== undefined ||
-      input.creator !== undefined ||
-      input.allDownloaded;
-    if (input.targets.length > 0 && selecting) {
-      throw new IgError(
-        "INVALID_INPUT",
-        "Give either targets or a selection (--top, --niche, --creator, --all-downloaded), not both.",
-        { hint: example },
-      );
-    }
-    if (input.targets.length === 0 && !selecting) {
-      throw new IgError("INVALID_INPUT", "Nothing to analyze: give targets or a selection.", {
-        hint: example,
+    const { targets, emptySteps, scope } = resolveSelection(ctx, input, "analyze");
+    const nextSteps: NextStep[] = [...emptySteps];
+    if (targets.length === 0 && input.targets.length === 0 && input.top === undefined) {
+      nextSteps.push({
+        command: `ig video download --top 10${scope}`,
+        description: "nothing is downloaded in this scope yet",
       });
-    }
-
-    let targets: (StoredVideo | string)[];
-    const nextSteps: NextStep[] = [];
-    let scope = "";
-    if (input.targets.length > 0) {
-      targets = [...new Set(input.targets.map((t) => t.trim()).filter(Boolean))];
-    } else {
-      if (input.niche) scope += ` --niche ${ctx.store.getNiche(input.niche).slug}`;
-      const creator = input.creator
-        ? ctx.store.getCreator(normalizeUsername(input.creator))
-        : undefined;
-      if (creator) scope += ` --creator ${creator.username}`;
-      if (input.top !== undefined) {
-        const selection = selectTop(ctx, { ...input, limit: input.top });
-        targets = selection.videos;
-        nextSteps.push(...selection.emptySteps);
-      } else {
-        targets = ctx.store.listVideos({
-          downloaded: true,
-          niche: input.niche,
-          creatorId: creator?.id,
-        });
-        if (targets.length === 0) {
-          nextSteps.push({
-            command: `ig video download --top 10${scope}`,
-            description: "nothing is downloaded in this scope yet",
-          });
-        }
-      }
     }
 
     if (targets.length > 0) requireTools();
@@ -270,7 +207,7 @@ const analyze = defineCommand({
     }
 
     const missing = summary.items
-      .filter((i) => i.status === "not-downloaded" && SAFE_SHORTCODE.test(i.shortcode))
+      .filter((i) => i.status === "not-downloaded" && isSafeShortcode(i.shortcode))
       .map((i) => i.shortcode);
     if (missing.length > 0) {
       const shown = missing.slice(0, 20);
@@ -282,7 +219,7 @@ const analyze = defineCommand({
             : "download first, then analyze again",
       });
     }
-    const done = summary.items.find((i) => i.analysis && SAFE_SHORTCODE.test(i.shortcode));
+    const done = summary.items.find((i) => i.analysis && isSafeShortcode(i.shortcode));
     if (done) {
       nextSteps.push({
         command: `ig video frames ${done.shortcode}`,
@@ -353,14 +290,11 @@ const frames = defineCommand({
   configure: (cmd) => cmd.argument("<video>", "video id, shortcode or reel URL"),
   args: ([video]) => ({ video }),
   handler: async (input, ctx) => {
-    const shortcode = parseShortcode(input.video);
-    const video =
-      ctx.store.findVideo(input.video.trim()) ??
-      (shortcode ? ctx.store.findVideo(shortcode) : null);
+    const { video, shortcode } = findStoredVideo(ctx.store, input.video);
     if (!video) {
       throw new IgError("NOT_FOUND", `No stored video matches ${oneLine(input.video)}.`, {
         hint:
-          shortcode && SAFE_SHORTCODE.test(shortcode)
+          shortcode && isSafeShortcode(shortcode)
             ? `Run \`ig video download ${shortcode}\`, then \`ig video analyze ${shortcode}\`.`
             : "Give a stored video id, a shortcode or a reel URL.",
       });

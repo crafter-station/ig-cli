@@ -210,6 +210,13 @@ describe("video analyze: input", () => {
     expect(ff.calls).toHaveLength(0);
   });
 
+  it("rejects --top together with --all-downloaded, as transcribe does", async () => {
+    const err = await failure(runAnalyze({ top: 3, allDownloaded: true }));
+    expect(err).toMatchObject({ code: "INVALID_INPUT", exitCode: 2 });
+    expect(err.message).toContain("--top or --all-downloaded");
+    expect(ff.calls).toHaveLength(0);
+  });
+
   it("rejects out-of-range options before any work", async () => {
     for (const bad of [{ threshold: 0 }, { threshold: 1 }, { maxFrames: 0 }, { frameWidth: 10 }]) {
       const err = await failure(runAnalyze({ targets: ["a1code"], ...bad }));
