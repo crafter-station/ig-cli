@@ -40,6 +40,11 @@ export function oneLine(text: string | null | undefined): string {
   return sanitize(text).replace(/\s+/g, " ").trim();
 }
 
+/** An error (or anything thrown) as one sanitized line, for an item's `reason`. */
+export function errorLine(err: unknown): string {
+  return oneLine(err instanceof Error ? err.message : String(err));
+}
+
 function pick(row: unknown, fields: string[]): unknown {
   if (row === null || typeof row !== "object") return row;
   const source = row as Record<string, unknown>;

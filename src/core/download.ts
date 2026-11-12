@@ -23,7 +23,8 @@ import { hasCommand } from "../cligentic/platform/detect.js";
 import type { Store } from "../db/store.js";
 import { EXIT, IgError } from "../lib/errors.js";
 import { bytes as formatBytes } from "../lib/format.js";
-import { oneLine } from "../lib/output.js";
+import { errorLine as message, oneLine } from "../lib/output.js";
+import { safeSegment } from "../lib/paths.js";
 import { FFPROBE_HINT, type MediaInfo, probeDefaults } from "./probe.js";
 import { parseShortcode, reelUrl, type StoredVideo } from "./types.js";
 
@@ -147,12 +148,6 @@ const defaults: DownloadDeps = {
   ffprobe: probeDefaults.ffprobe,
 };
 
-/** Usernames and shortcodes come from upstream; never let one steer the path. */
-function safeSegment(value: string): string {
-  const cleaned = value.replace(/[^A-Za-z0-9._-]/g, "_");
-  return /^\.*$/.test(cleaned) ? "_" : cleaned;
-}
-
 export function destinationFor(dir: string, video: { creatorUsername: string; shortcode: string }) {
   return join(
     resolve(dir),
@@ -165,8 +160,6 @@ function tempPath(dest: string, suffix: string): string {
   const rand = Math.random().toString(36).slice(2, 8);
   return join(dirname(dest), `.${basename(dest, ".mp4")}.${rand}${suffix}`);
 }
-
-const message = (err: unknown): string => oneLine(err instanceof Error ? err.message : String(err));
 
 /** Block and auth errors end the batch; retrying them makes things worse. */
 function stopsBatch(err: unknown): err is IgError {

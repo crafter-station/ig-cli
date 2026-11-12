@@ -16,14 +16,24 @@
 // Everything that touches a child process goes through an injectable runner
 // that takes an argument array, never a shell string, so tests need no ffmpeg.
 
-import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { z } from "zod";
 import { atomicWriteJson } from "../cligentic/foundation/atomic-write.js";
-import { hasCommand } from "../cligentic/platform/detect.js";
 import type { Store } from "../db/store.js";
-import { oneLine } from "../lib/output.js";
+import { round } from "../lib/math.js";
+import { errorLine, oneLine } from "../lib/output.js";
+import { safeSegment } from "../lib/paths.js";
+import {
+  hasTool,
+  lastLine,
+  type MediaProbe,
+  mustRun,
+  probeFile,
+  type Runner,
+  runTool,
+  type Tool,
+} from "./ffmpeg.js";
 import { median } from "./ranking.js";
 import { parseShortcode, type StoredVideo } from "./types.js";
 
@@ -130,138 +140,16 @@ export const DEFAULT_OPTIONS: AnalyzeOptions = {
 
 // --- running ffmpeg ----------------------------------------------------------
 
-export type Tool = "ffmpeg" | "ffprobe";
-export type RunResult = { code: number | null; stdout: string; stderr: string };
-export type Runner = (tool: Tool, args: string[]) => Promise<RunResult>;
+export type { Runner, RunResult, Tool } from "./ffmpeg.js";
 
 export type AnalyzeDeps = {
   run: Runner;
   hasTool: (tool: Tool) => boolean;
 };
 
-const RUN_TIMEOUT_MS = 10 * 60_000;
-const MAX_OUTPUT = 8 * 1024 * 1024;
-
-/** Spawns the tool with an argument array. Nothing in a path is interpreted. */
-export function runTool(tool: Tool, args: string[]): Promise<RunResult> {
-  return new Promise((done, fail) => {
-    const child = spawn(tool, args, {
-      shell: false,
-      windowsHide: true,
-      stdio: ["ignore", "pipe", "pipe"],
-      timeout: RUN_TIMEOUT_MS,
-    });
-    let stdout = "";
-    let stderr = "";
-    child.stdout.on("data", (chunk) => {
-      if (stdout.length < MAX_OUTPUT) stdout += String(chunk);
-    });
-    child.stderr.on("data", (chunk) => {
-      stderr = (stderr + String(chunk)).slice(-MAX_OUTPUT);
-    });
-    child.on("error", fail);
-    child.on("close", (code) => done({ code, stdout, stderr }));
-  });
-}
-
-const defaults: AnalyzeDeps = { run: runTool, hasTool: (tool) => hasCommand(tool) };
-
-/** First line of `<tool> -version`, shortened, or null when it cannot run. For `ig doctor`. */
-export function toolVersion(tool: Tool): string | null {
-  try {
-    const out = spawnSync(tool, ["-version"], {
-      shell: false,
-      windowsHide: true,
-      encoding: "utf8",
-      timeout: 10_000,
-    });
-    if (out.status !== 0 || !out.stdout) return null;
-    const match = out.stdout.match(/version\s+(\S+)/);
-    return match?.[1] ?? "found on PATH";
-  } catch {
-    return null;
-  }
-}
-
-const lastLine = (text: string): string => oneLine(text.trim().split(/\r?\n/).pop() ?? "");
-
-async function must(deps: AnalyzeDeps, tool: Tool, args: string[]): Promise<RunResult> {
-  const result = await deps.run(tool, args);
-  if (result.code !== 0) {
-    throw new Error(`${tool} failed: ${lastLine(result.stderr) || `exit code ${result.code}`}`);
-  }
-  return result;
-}
+const defaults: AnalyzeDeps = { run: runTool, hasTool };
 
 const QUIET = ["-hide_banner", "-nostdin", "-loglevel", "error"];
-const round = (n: number, digits = 2): number => {
-  const f = 10 ** digits;
-  return Math.round(n * f) / f;
-};
-
-// --- ffprobe -----------------------------------------------------------------
-
-export type MediaInfo = {
-  durationSec: number | null;
-  width: number | null;
-  height: number | null;
-  hasVideo: boolean;
-  hasAudio: boolean;
-};
-
-export function probeArgs(file: string): string[] {
-  return ["-v", "error", "-print_format", "json", "-show_format", "-show_streams", "-i", file];
-}
-
-const positive = (value: unknown): number | null => {
-  const n = Number(value);
-  return Number.isFinite(n) && n > 0 ? n : null;
-};
-
-/** Reads ffprobe's JSON. A stream rotated by 90 degrees reports the size as displayed. */
-export function parseProbe(json: string): MediaInfo {
-  let doc: { format?: Record<string, unknown>; streams?: Record<string, unknown>[] };
-  try {
-    doc = JSON.parse(json);
-  } catch {
-    throw new Error("ffprobe did not return JSON");
-  }
-  const streams = Array.isArray(doc.streams) ? doc.streams : [];
-  // Cover art in an audio file is a video stream too; it is not a video.
-  const video = streams.find(
-    (s) =>
-      s.codec_type === "video" &&
-      (s.disposition as Record<string, unknown> | undefined)?.attached_pic !== 1,
-  );
-  const audio = streams.some((s) => s.codec_type === "audio");
-  let width = video ? positive(video.width) : null;
-  let height = video ? positive(video.height) : null;
-  const sideData = Array.isArray(video?.side_data_list)
-    ? (video.side_data_list as Record<string, unknown>[])
-    : [];
-  const rotation = Number(
-    sideData.find((d) => d.rotation !== undefined)?.rotation ??
-      (video?.tags as Record<string, unknown> | undefined)?.rotate ??
-      0,
-  );
-  if (Math.abs(rotation) % 180 === 90) [width, height] = [height, width];
-  const duration = positive(doc.format?.duration) ?? positive(video?.duration);
-  return {
-    durationSec: duration === null ? null : round(duration, 3),
-    width: width === null ? null : Math.round(width),
-    height: height === null ? null : Math.round(height),
-    hasVideo: video !== undefined,
-    hasAudio: audio,
-  };
-}
-
-export async function probeMedia(
-  file: string,
-  overrides: Partial<AnalyzeDeps> = {},
-): Promise<MediaInfo> {
-  const deps = { ...defaults, ...overrides };
-  return parseProbe((await must(deps, "ffprobe", probeArgs(file))).stdout);
-}
 
 // --- cuts --------------------------------------------------------------------
 
@@ -575,7 +463,7 @@ const NO_AUDIO: AudioFacts = {
 async function measureAudio(
   deps: AnalyzeDeps,
   file: string,
-  media: MediaInfo,
+  media: MediaProbe,
 ): Promise<AudioFacts> {
   if (!media.hasAudio) return NO_AUDIO;
   try {
@@ -604,10 +492,10 @@ export async function analyzeFile(
   const opts = { ...DEFAULT_OPTIONS, ...options };
   const dir = resolve(framesDir);
 
-  const media = parseProbe((await must(deps, "ffprobe", probeArgs(file))).stdout);
+  const media = await probeFile(file, deps.run);
   if (!media.hasVideo) throw new Error("the file has no video stream");
 
-  const scenes = await must(deps, "ffmpeg", sceneArgs(file, opts.threshold));
+  const scenes = await mustRun(deps.run, "ffmpeg", sceneArgs(file, opts.threshold));
   const cutTimes = mergeCuts(parseScenes(scenes.stdout), opts.minGapSec);
   const stats = shotStats(cutTimes, media.durationSec);
   const audio = await measureAudio(deps, file, media);
@@ -665,12 +553,6 @@ export function readFramesIndex(framesDir: string): FramesIndex | null {
 
 // --- a batch of stored videos ------------------------------------------------
 
-/** Shortcodes come from upstream; never let one steer the path. */
-function safeSegment(value: string): string {
-  const cleaned = value.replace(/[^A-Za-z0-9._-]/g, "_");
-  return /^\.*$/.test(cleaned) ? "_" : cleaned;
-}
-
 export function framesDirFor(mediaDir: string, shortcode: string): string {
   return join(resolve(mediaDir), "frames", safeSegment(shortcode));
 }
@@ -709,8 +591,6 @@ export type AnalyzeRequest = {
 };
 
 const toAnalysis = (index: FramesIndex): Analysis => AnalysisSchema.parse(index);
-const errorText = (err: unknown): string =>
-  oneLine(err instanceof Error ? err.message : String(err));
 
 /**
  * Analyzes stored videos one after another. Only files already on disk are
@@ -809,7 +689,7 @@ export async function analyzeVideos(
       });
       return { ...base, status: "analyzed", reason: null, analysis: toAnalysis(index) };
     } catch (err) {
-      return { ...base, status: "failed", reason: errorText(err), analysis: null };
+      return { ...base, status: "failed", reason: errorLine(err), analysis: null };
     }
   };
 

@@ -13,7 +13,6 @@
 //   5. A rejected key, an exhausted quota or a missing binary ends the batch at
 //      once. Anything else fails one video and the batch goes on.
 
-import { spawn } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -21,7 +20,7 @@ import { hasCommand } from "../cligentic/platform/detect.js";
 import type { Store } from "../db/store.js";
 import type { Config } from "../lib/config.js";
 import { type ErrorCode, IgError } from "../lib/errors.js";
-import { oneLine } from "../lib/output.js";
+import { errorLine as message, oneLine } from "../lib/output.js";
 import { createElevenLabsEngine, elevenlabsAvailability } from "../transcribe/elevenlabs.js";
 import { createOpenAiEngine, openaiAvailability } from "../transcribe/openai.js";
 import {
@@ -32,6 +31,7 @@ import {
   type Env,
 } from "../transcribe/types.js";
 import { createWhisperCppEngine, whisperCppAvailability } from "../transcribe/whisper-cpp.js";
+import { lastLine, type MediaProbe, probeFile, type Runner, runTool } from "./ffmpeg.js";
 import { parseShortcode, type StoredVideo, type TranscriptSegment } from "./types.js";
 
 export type EngineChoice = EngineName | "auto";
@@ -44,44 +44,18 @@ export type EngineChoice = EngineName | "auto";
  */
 export const AUTO_ORDER: readonly EngineName[] = ["whisper-cpp", "elevenlabs", "openai"];
 
-export type RunResult = { code: number; stdout: string; stderr: string };
-
 export type TranscribeDeps = {
   /** Environment the engines read their keys and overrides from. */
   env: Env;
   hasCommand: (name: string) => boolean;
   /** Runs ffmpeg or ffprobe with an argument array. Rejects only when it cannot start. */
-  run: (bin: string, args: string[]) => Promise<RunResult>;
+  run: Runner;
   makeTempDir: () => string;
   removeDir: (dir: string) => void;
   exists: (path: string) => boolean;
   availability: (config: Config, env: Env) => EngineAvailability[];
   createEngine: (name: EngineName, config: Config, env: Env) => Engine;
 };
-
-const FFMPEG_TIMEOUT_MS = 10 * 60_000;
-
-/** Argument array, no shell: nothing in a path is interpreted. */
-export function runBinary(bin: string, args: string[]): Promise<RunResult> {
-  return new Promise((done, fail) => {
-    const child = spawn(bin, args, {
-      shell: false,
-      windowsHide: true,
-      stdio: ["ignore", "pipe", "pipe"],
-      timeout: FFMPEG_TIMEOUT_MS,
-    });
-    let stdout = "";
-    let stderr = "";
-    child.stdout.on("data", (chunk) => {
-      stdout += String(chunk);
-    });
-    child.stderr.on("data", (chunk) => {
-      stderr = (stderr + String(chunk)).slice(-4000);
-    });
-    child.on("error", fail);
-    child.on("close", (code) => done({ code: code ?? 1, stdout, stderr }));
-  });
-}
 
 export function engineAvailability(config: Config, env: Env): EngineAvailability[] {
   const all: Record<EngineName, () => EngineAvailability> = {
@@ -106,7 +80,7 @@ function createEngine(name: EngineName, config: Config, env: Env): Engine {
 const defaults: TranscribeDeps = {
   env: process.env,
   hasCommand,
-  run: runBinary,
+  run: runTool,
   makeTempDir: () => mkdtempSync(join(tmpdir(), "ig-cli-audio-")),
   removeDir: (dir) => rmSync(dir, { recursive: true, force: true }),
   exists: existsSync,
@@ -161,37 +135,6 @@ export function isEngineName(value: string): value is EngineName {
 }
 
 // --- ffmpeg -----------------------------------------------------------------
-
-export type Probe = { durationSec: number | null; hasAudio: boolean };
-
-const lastLine = (text: string): string => oneLine(text.trim().split(/\r?\n/).pop() ?? "");
-
-/** Duration and whether there is an audio stream at all. */
-export async function probeMedia(path: string, deps: TranscribeDeps): Promise<Probe> {
-  const result = await deps.run("ffprobe", [
-    "-v",
-    "error",
-    "-show_entries",
-    "format=duration:stream=codec_type",
-    "-of",
-    "json",
-    path,
-  ]);
-  if (result.code !== 0) {
-    throw new Error(`ffprobe could not read the file: ${lastLine(result.stderr) || "no detail"}`);
-  }
-  let parsed: { format?: { duration?: unknown }; streams?: { codec_type?: unknown }[] };
-  try {
-    parsed = JSON.parse(result.stdout);
-  } catch {
-    throw new Error("ffprobe printed something that is not JSON");
-  }
-  const duration = Number(parsed.format?.duration);
-  return {
-    durationSec: Number.isFinite(duration) && duration > 0 ? duration : null,
-    hasAudio: (parsed.streams ?? []).some((s) => s.codec_type === "audio"),
-  };
-}
 
 /** The first audio stream as mono 16 kHz, which is what every engine wants. */
 export async function extractAudio(
@@ -318,13 +261,11 @@ function stopsBatch(err: unknown): err is IgError {
   return err instanceof IgError && BATCH_ENDING.has(err.code);
 }
 
-const message = (err: unknown): string => oneLine(err instanceof Error ? err.message : String(err));
-
 const minutes = (seconds: number): number => Math.round((seconds / 60) * 100) / 100;
 
 const countWords = (text: string): number => (text.match(/[\p{L}\p{N}]+/gu) ?? []).length;
 
-type Pending = { index: number; video: StoredVideo; path: string; probe: Probe | null };
+type Pending = { index: number; video: StoredVideo; path: string; probe: MediaProbe | null };
 
 export async function transcribeVideos(
   env: TranscribeEnv,
@@ -407,9 +348,9 @@ export async function transcribeVideos(
       continue;
     }
     // The duration is needed up front to say how much audio will be sent.
-    let probe: Probe | null = null;
+    let probe: MediaProbe | null = null;
     try {
-      probe = await probeMedia(video.localPath, deps);
+      probe = await probeFile(video.localPath, deps.run);
     } catch {
       // Left for the transcription step, which reports the failure per video.
     }
@@ -513,7 +454,7 @@ async function transcribeOne(
 ): Promise<{ item: Partial<TranscribeItem>; model: string | null; sent: boolean }> {
   const { video, path } = job;
   const { engine } = request;
-  const probe = job.probe ?? (await probeMedia(path, deps));
+  const probe = job.probe ?? (await probeFile(path, deps.run));
   if (probe.durationSec !== null && video.durationSec === null) {
     env.store.setVideoMedia(video.id, { durationSec: probe.durationSec });
   }

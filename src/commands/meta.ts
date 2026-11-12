@@ -2,7 +2,7 @@ import { accessSync, constants, mkdirSync } from "node:fs";
 import { z } from "zod";
 import { hasCommand } from "../cligentic/platform/detect.js";
 import { bold, danger, dim, muted, ok } from "../cligentic/platform/style.js";
-import { toolVersion } from "../core/analyze.js";
+import { toolVersion } from "../core/ffmpeg.js";
 import {
   type CommandDef,
   cliPath,

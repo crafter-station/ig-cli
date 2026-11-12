@@ -3,11 +3,11 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { commands } from "../src/commands/index.js";
 import { makeTranscriptCommands, toSrt } from "../src/commands/transcript.js";
+import { probeArgs, probeFile } from "../src/core/ffmpeg.js";
 import {
   AUTO_ORDER,
   extractAudio,
   hookOf,
-  probeMedia,
   resolveEngine,
   type TranscribeDeps,
   type TranscribeSummary,
@@ -252,18 +252,15 @@ describe("ffmpeg", () => {
   it("probes with an argument array and reads duration and audio presence", async () => {
     const h = harness({ durationSec: 12.5, noAudio: ["mute.mp4"] });
     const deps = transcribeDeps(h.deps);
-    expect(await probeMedia("a b.mp4", deps)).toEqual({ durationSec: 12.5, hasAudio: true });
-    expect(await probeMedia("mute.mp4", deps)).toEqual({ durationSec: 12.5, hasAudio: false });
-    expect(h.runs[0]).toEqual([
-      "ffprobe",
-      "-v",
-      "error",
-      "-show_entries",
-      "format=duration:stream=codec_type",
-      "-of",
-      "json",
-      "a b.mp4",
-    ]);
+    expect(await probeFile("a b.mp4", deps.run)).toMatchObject({
+      durationSec: 12.5,
+      hasAudio: true,
+    });
+    expect(await probeFile("mute.mp4", deps.run)).toMatchObject({
+      durationSec: 12.5,
+      hasAudio: false,
+    });
+    expect(h.runs[0]).toEqual(["ffprobe", ...probeArgs("a b.mp4")]);
   });
 
   it("extracts the first audio stream as mono 16 kHz in the engine's format", async () => {
@@ -545,7 +542,7 @@ describe("video transcribe", () => {
     const { data } = await transcribe(defs, { targets: ["sc1", "sc2"] });
     expect(data.items[0]).toMatchObject({
       status: "failed",
-      reason: "ffprobe could not read the file: moov atom not found",
+      reason: "ffprobe failed: moov atom not found",
     });
     expect(data.items[1]?.status).toBe("transcribed");
   });

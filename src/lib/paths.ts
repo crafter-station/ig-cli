@@ -40,3 +40,12 @@ export function ensureDirs(paths: IgPaths): void {
   mkdirSync(paths.config, { recursive: true });
   mkdirSync(paths.state, { recursive: true });
 }
+
+/**
+ * Usernames and shortcodes come from upstream; never let one steer a path.
+ * Anything outside [A-Za-z0-9._-] becomes `_`, and a name of only dots too.
+ */
+export function safeSegment(value: string): string {
+  const cleaned = value.replace(/[^A-Za-z0-9._-]/g, "_");
+  return /^\.*$/.test(cleaned) ? "_" : cleaned;
+}

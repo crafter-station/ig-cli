@@ -23,10 +23,8 @@ import {
   mergeCuts,
   missingTools,
   parseAudio,
-  parseProbe,
   parseScenes,
   pickFrames,
-  probeArgs,
   type RunResult,
   readFramesIndex,
   SHEET_FILE,
@@ -36,6 +34,7 @@ import {
   shotStats,
   type Tool,
 } from "../src/core/analyze.js";
+import { parseProbe, probeArgs } from "../src/core/ffmpeg.js";
 import { Store } from "../src/db/store.js";
 import { creator, tempHome, video } from "./helpers.js";
 
@@ -202,7 +201,7 @@ describe("parseProbe", () => {
   });
 
   it("throws on output that is not JSON", () => {
-    expect(() => parseProbe("not json")).toThrow(/did not return JSON/);
+    expect(() => parseProbe("not json")).toThrow(/not JSON/);
   });
 });
 

@@ -1,13 +1,14 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { parseProbe } from "../src/core/ffmpeg.js";
 import {
   FFPROBE_HINT,
   type MediaInfo,
   needsProbe,
   type ProbeDeps,
-  parseFfprobe,
   probeVideos,
+  toMediaInfo,
 } from "../src/core/probe.js";
 import type { StoredVideo, Video } from "../src/core/types.js";
 import { type TestEnv, testEnv } from "./fake-backend.js";
@@ -18,7 +19,15 @@ afterEach(async () => {
   await env?.cleanup();
 });
 
-const out = (doc: unknown) => JSON.stringify(doc);
+/** ffprobe JSON; every stream given is a video stream. */
+const out = (doc: { streams?: object[]; format?: object }) =>
+  JSON.stringify({
+    ...doc,
+    ...(doc.streams ? { streams: doc.streams.map((s) => ({ codec_type: "video", ...s })) } : {}),
+  });
+
+/** What `ig video probe` stores from ffprobe's output. */
+const parseFfprobe = (json: string): MediaInfo => toMediaInfo(parseProbe(json));
 
 describe("parseFfprobe", () => {
   it("reads duration and dimensions", () => {
