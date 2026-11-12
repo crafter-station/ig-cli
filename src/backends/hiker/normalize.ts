@@ -12,7 +12,7 @@
 // no id, no shortcode or no owner is rejected with UPSTREAM_CHANGED instead of
 // being emitted half-formed. Upstream text never goes into an error message.
 
-import { type Creator, profileUrl, reelUrl, type Video } from "../../core/types.js";
+import { type Audio, type Creator, profileUrl, reelUrl, type Video } from "../../core/types.js";
 import { IgError } from "../../lib/errors.js";
 import type { CreatorCandidate } from "../types.js";
 
@@ -188,6 +188,42 @@ function bestVideoUrl(list: unknown): string | null {
 }
 
 /**
+ * The sound of a reel. Typed media documents a free-form `clips_metadata`
+ * object; raw media shows the same content under `music_metadata` in the
+ * handbook examples. Inside either, licensed music is
+ * `music_info.music_asset_info` and a creator's own sound is
+ * `original_sound_info`. Returns undefined when the item carries neither
+ * container, so "not reported" never overwrites a stored sound; null when the
+ * container is there but names no sound.
+ */
+function audioOf(media: Json): Audio | null | undefined {
+  if (!("clips_metadata" in media) && !("music_metadata" in media)) return undefined;
+  for (const container of [media.clips_metadata, media.music_metadata]) {
+    if (!isObject(container)) continue;
+    const music = isObject(container.music_info) ? container.music_info.music_asset_info : null;
+    if (isObject(music)) {
+      return {
+        id:
+          idString(music.audio_cluster_id) ?? idString(music.audio_asset_id) ?? idString(music.id),
+        title: text(music.title),
+        artist: text(music.display_artist),
+        isOriginal: false,
+      };
+    }
+    const sound = container.original_sound_info;
+    if (isObject(sound)) {
+      return {
+        id: idString(sound.audio_asset_id),
+        title: text(sound.original_audio_title),
+        artist: isObject(sound.ig_artist) ? text(sound.ig_artist.username) : null,
+        isOriginal: true,
+      };
+    }
+  }
+  return null;
+}
+
+/**
  * One media item, typed (`Media`) or raw, to a Video. Returns null for a
  * photo or carousel so list callers can skip it.
  */
@@ -216,6 +252,7 @@ export function normalizeMedia(raw: unknown, endpoint: string): Video | null {
   const likes = count(media.like_count);
   const duration = media.video_duration;
   const imageVersions2 = isObject(media.image_versions2) ? media.image_versions2 : null;
+  const audio = audioOf(media);
 
   return {
     id,
@@ -239,6 +276,7 @@ export function normalizeMedia(raw: unknown, endpoint: string): Video | null {
       firstUrl(imageVersions2?.candidates) ??
       firstUrl(media.image_versions),
     videoUrl: text(media.video_url) ?? bestVideoUrl(media.video_versions),
+    ...(audio === undefined ? {} : { audio }),
   };
 }
 
