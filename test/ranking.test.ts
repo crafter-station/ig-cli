@@ -9,6 +9,16 @@ const stored = (id: string, creatorId: string, plays: number | null, extra = {})
   downloadedAt: null,
   firstSeenAt: "2026-11-01T00:00:00.000Z",
   refreshedAt: "2026-11-01T00:00:00.000Z",
+  audio: null,
+  hashtags: [],
+  mentions: [],
+  width: null,
+  height: null,
+  cuts: null,
+  cutsPerMin: null,
+  framesDir: null,
+  analyzedAt: null,
+  hasTranscript: false,
 });
 
 describe("median", () => {

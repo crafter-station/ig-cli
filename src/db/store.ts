@@ -7,11 +7,13 @@ import { dirname } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import {
   type Creator,
+  extractTags,
   type Niche,
   profileUrl,
   reelUrl,
   type StoredCreator,
   type StoredVideo,
+  type Transcript,
   type Video,
 } from "../core/types.js";
 import { IgError } from "../lib/errors.js";
@@ -294,8 +296,9 @@ export class Store {
     const upsert = this.db.prepare(
       `INSERT INTO videos
          (id, shortcode, creator_id, caption, taken_at, duration_sec, plays, likes, comments,
-          thumbnail_url, video_url, first_seen_at, refreshed_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          thumbnail_url, video_url, first_seen_at, refreshed_at,
+          hashtags, mentions, audio_id, audio_title, audio_artist, audio_is_original)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET
          caption = COALESCE(excluded.caption, caption),
          taken_at = COALESCE(excluded.taken_at, taken_at),
@@ -305,6 +308,12 @@ export class Store {
          comments = COALESCE(excluded.comments, comments),
          thumbnail_url = COALESCE(excluded.thumbnail_url, thumbnail_url),
          video_url = COALESCE(excluded.video_url, video_url),
+         hashtags = CASE WHEN excluded.caption IS NULL THEN hashtags ELSE excluded.hashtags END,
+         mentions = CASE WHEN excluded.caption IS NULL THEN mentions ELSE excluded.mentions END,
+         audio_id = COALESCE(excluded.audio_id, audio_id),
+         audio_title = COALESCE(excluded.audio_title, audio_title),
+         audio_artist = COALESCE(excluded.audio_artist, audio_artist),
+         audio_is_original = COALESCE(excluded.audio_is_original, audio_is_original),
          refreshed_at = excluded.refreshed_at`,
     );
     const snapshot = this.db.prepare(
@@ -319,6 +328,8 @@ export class Store {
       let inserted = 0;
       for (const v of videos) {
         if (!exists.get(v.id)) inserted++;
+        const tags = extractTags(v.caption);
+        const original = v.audio?.isOriginal;
         upsert.run(
           v.id,
           v.shortcode,
@@ -333,6 +344,12 @@ export class Store {
           v.videoUrl,
           ts,
           ts,
+          JSON.stringify(tags.hashtags),
+          JSON.stringify(tags.mentions),
+          v.audio?.id ?? null,
+          v.audio?.title ?? null,
+          v.audio?.artist ?? null,
+          original === null || original === undefined ? null : original ? 1 : 0,
         );
         snapshot.run(v.id, ts, v.plays, v.likes, v.comments);
         dropFts.run(v.id);
@@ -343,7 +360,8 @@ export class Store {
   }
 
   private videoQuery = `
-    SELECT v.*, c.username AS creator_username
+    SELECT v.*, c.username AS creator_username,
+      EXISTS (SELECT 1 FROM transcripts t WHERE t.video_id = v.id) AS has_transcript
     FROM videos v JOIN creators c ON c.id = v.creator_id`;
 
   /** Looks up by media id or shortcode. */
@@ -393,7 +411,8 @@ export class Store {
     const match = terms.map((t) => `"${t}"`).join(" ");
     const params: (string | number)[] = [match];
     let sql = `
-      SELECT v.*, c.username AS creator_username
+      SELECT v.*, c.username AS creator_username,
+        EXISTS (SELECT 1 FROM transcripts t WHERE t.video_id = v.id) AS has_transcript
       FROM videos_fts f
       JOIN videos v ON v.id = f.video_id
       JOIN creators c ON c.id = v.creator_id
@@ -411,6 +430,118 @@ export class Store {
     this.db
       .prepare("UPDATE videos SET local_path = ?, downloaded_at = ? WHERE id = ?")
       .run(localPath, now(), videoId);
+  }
+
+  /** Records what was measured from the downloaded file. Nulls leave a value untouched. */
+  setVideoMedia(
+    videoId: string,
+    media: { durationSec?: number | null; width?: number | null; height?: number | null },
+  ): void {
+    this.db
+      .prepare(
+        `UPDATE videos SET
+           duration_sec = COALESCE(?, duration_sec),
+           width = COALESCE(?, width),
+           height = COALESCE(?, height)
+         WHERE id = ?`,
+      )
+      .run(media.durationSec ?? null, media.width ?? null, media.height ?? null, videoId);
+  }
+
+  /** Records the result of `ig video analyze`. */
+  setVideoAnalysis(
+    videoId: string,
+    analysis: { cuts: number | null; cutsPerMin: number | null; framesDir: string | null },
+  ): void {
+    this.db
+      .prepare(
+        "UPDATE videos SET cuts = ?, cuts_per_min = ?, frames_dir = ?, analyzed_at = ? WHERE id = ?",
+      )
+      .run(analysis.cuts, analysis.cutsPerMin, analysis.framesDir, now(), videoId);
+  }
+
+  // --- transcripts ----------------------------------------------------------
+
+  /** Stores a transcript, replacing any earlier one for the same video. */
+  saveTranscript(t: Omit<Transcript, "createdAt">): Transcript {
+    const createdAt = now();
+    this.tx(() => {
+      this.db
+        .prepare(
+          `INSERT INTO transcripts (video_id, language, text, hook, segments, engine, model, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(video_id) DO UPDATE SET
+             language = excluded.language, text = excluded.text, hook = excluded.hook,
+             segments = excluded.segments, engine = excluded.engine, model = excluded.model,
+             created_at = excluded.created_at`,
+        )
+        .run(
+          t.videoId,
+          t.language,
+          t.text,
+          t.hook,
+          JSON.stringify(t.segments),
+          t.engine,
+          t.model,
+          createdAt,
+        );
+      this.db.prepare("DELETE FROM transcripts_fts WHERE video_id = ?").run(t.videoId);
+      this.db
+        .prepare("INSERT INTO transcripts_fts (video_id, text) VALUES (?, ?)")
+        .run(t.videoId, t.text);
+    });
+    return { ...t, createdAt };
+  }
+
+  /** Looks up by media id or shortcode. */
+  getTranscript(idOrShortcode: string): Transcript | null {
+    const row = this.db
+      .prepare(
+        `SELECT t.* FROM transcripts t JOIN videos v ON v.id = t.video_id
+         WHERE v.id = ? OR v.shortcode = ?`,
+      )
+      .get(idOrShortcode, idOrShortcode) as Row | undefined;
+    if (!row) return null;
+    return {
+      videoId: String(row.video_id),
+      language: str(row.language),
+      text: String(row.text),
+      hook: str(row.hook),
+      segments: JSON.parse(String(row.segments)),
+      engine: String(row.engine),
+      model: str(row.model),
+      createdAt: String(row.created_at),
+    };
+  }
+
+  /**
+   * Full-text search over what is said in the videos. Plain words, all must
+   * match, as in `searchVideos`. `snippet` marks the matches with [brackets].
+   */
+  searchTranscripts(
+    query: string,
+    opts: { niche?: string; limit?: number } = {},
+  ): { video: StoredVideo; snippet: string }[] {
+    const terms = query.match(/[\p{L}\p{N}_]+/gu) ?? [];
+    if (terms.length === 0) return [];
+    const params: (string | number)[] = [terms.map((t) => `"${t}"`).join(" ")];
+    let sql = `
+      SELECT v.*, c.username AS creator_username, 1 AS has_transcript,
+        snippet(transcripts_fts, 1, '[', ']', ' … ', 18) AS snippet
+      FROM transcripts_fts f
+      JOIN videos v ON v.id = f.video_id
+      JOIN creators c ON c.id = v.creator_id
+      WHERE transcripts_fts MATCH ?`;
+    if (opts.niche) {
+      sql += " AND v.creator_id IN (SELECT creator_id FROM niche_creators WHERE niche_id = ?)";
+      params.push(this.nicheId(opts.niche));
+    }
+    sql += " ORDER BY f.rank LIMIT ?";
+    params.push(opts.limit ?? 50);
+    return (this.db.prepare(sql).all(...params) as Row[]).map((r) => ({
+      video: toVideo(r),
+      snippet: String(r.snippet),
+    }));
   }
 
   // --- request budget -------------------------------------------------------
@@ -491,5 +622,24 @@ function toVideo(r: Row): StoredVideo {
     downloadedAt: str(r.downloaded_at),
     firstSeenAt: String(r.first_seen_at),
     refreshedAt: String(r.refreshed_at),
+    audio:
+      r.audio_id === null && r.audio_title === null && r.audio_artist === null
+        ? null
+        : {
+            id: str(r.audio_id),
+            title: str(r.audio_title),
+            artist: str(r.audio_artist),
+            isOriginal: r.audio_is_original === null ? null : Number(r.audio_is_original) === 1,
+          },
+    // Rows stored before these columns existed fall back to the caption.
+    hashtags: r.hashtags ? JSON.parse(String(r.hashtags)) : extractTags(str(r.caption)).hashtags,
+    mentions: r.mentions ? JSON.parse(String(r.mentions)) : extractTags(str(r.caption)).mentions,
+    width: num(r.width),
+    height: num(r.height),
+    cuts: num(r.cuts),
+    cutsPerMin: num(r.cuts_per_min),
+    framesDir: str(r.frames_dir),
+    analyzedAt: str(r.analyzed_at),
+    hasTranscript: Number(r.has_transcript ?? 0) === 1,
   };
 }

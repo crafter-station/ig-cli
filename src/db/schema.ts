@@ -87,4 +87,35 @@ export const MIGRATIONS: string[] = [
     PRIMARY KEY (day, backend)
   );
   `,
+  `
+  ALTER TABLE videos ADD COLUMN hashtags TEXT;
+  ALTER TABLE videos ADD COLUMN mentions TEXT;
+  ALTER TABLE videos ADD COLUMN audio_id TEXT;
+  ALTER TABLE videos ADD COLUMN audio_title TEXT;
+  ALTER TABLE videos ADD COLUMN audio_artist TEXT;
+  ALTER TABLE videos ADD COLUMN audio_is_original INTEGER;
+  ALTER TABLE videos ADD COLUMN width INTEGER;
+  ALTER TABLE videos ADD COLUMN height INTEGER;
+  ALTER TABLE videos ADD COLUMN cuts INTEGER;
+  ALTER TABLE videos ADD COLUMN cuts_per_min REAL;
+  ALTER TABLE videos ADD COLUMN frames_dir TEXT;
+  ALTER TABLE videos ADD COLUMN analyzed_at TEXT;
+
+  CREATE TABLE transcripts (
+    video_id TEXT PRIMARY KEY REFERENCES videos(id) ON DELETE CASCADE,
+    language TEXT,
+    text TEXT NOT NULL,
+    hook TEXT,
+    segments TEXT NOT NULL,
+    engine TEXT NOT NULL,
+    model TEXT,
+    created_at TEXT NOT NULL
+  );
+
+  CREATE VIRTUAL TABLE transcripts_fts USING fts5(
+    video_id UNINDEXED,
+    text,
+    tokenize = 'unicode61 remove_diacritics 2'
+  );
+  `,
 ];

@@ -48,6 +48,17 @@ export const CreatorHitSchema = z.object({
 });
 export type CreatorHit = z.infer<typeof CreatorHitSchema>;
 
+export const AudioSchema = z.object({
+  id: z.string().nullable(),
+  title: z.string().nullable(),
+  artist: z.string().nullable(),
+  isOriginal: z
+    .boolean()
+    .nullable()
+    .describe("True when the creator recorded the sound, false for licensed music"),
+});
+export type Audio = z.infer<typeof AudioSchema>;
+
 export const VideoSchema = z.object({
   id: z.string().describe("Instagram media id, as a string"),
   shortcode: z.string(),
@@ -65,6 +76,9 @@ export const VideoSchema = z.object({
     .string()
     .nullable()
     .describe("Signed CDN URL. Expires within hours; download promptly or re-fetch"),
+  audio: AudioSchema.nullable()
+    .optional()
+    .describe("Sound used by the reel. Absent when the backend does not report it"),
 });
 export type Video = z.infer<typeof VideoSchema>;
 
@@ -73,8 +87,49 @@ export const StoredVideoSchema = VideoSchema.extend({
   downloadedAt: isoDate.nullable(),
   firstSeenAt: isoDate,
   refreshedAt: isoDate,
+  audio: AudioSchema.nullable(),
+  hashtags: z.array(z.string()).describe("From the caption: lowercase, without #"),
+  mentions: z.array(z.string()).describe("From the caption: lowercase usernames, without @"),
+  width: z.number().int().nullable().describe("Pixels, measured from the downloaded file"),
+  height: z.number().int().nullable(),
+  cuts: z.number().int().nullable().describe("Scene changes detected by `ig video analyze`"),
+  cutsPerMin: z.number().nullable().describe("Editing pace. Higher is faster"),
+  framesDir: z.string().nullable().describe("Directory of exported key frames"),
+  analyzedAt: isoDate.nullable(),
+  hasTranscript: z.boolean(),
 });
 export type StoredVideo = z.infer<typeof StoredVideoSchema>;
+
+export const TranscriptSegmentSchema = z.object({
+  start: z.number().describe("Seconds from the start of the video"),
+  end: z.number(),
+  text: z.string(),
+});
+export type TranscriptSegment = z.infer<typeof TranscriptSegmentSchema>;
+
+export const TranscriptSchema = z.object({
+  videoId: z.string(),
+  language: z.string().nullable().describe("ISO 639-1 code detected by the engine"),
+  text: z.string().describe("Untrusted third-party speech, transcribed by a model"),
+  hook: z.string().nullable().describe("What is said in the opening seconds"),
+  segments: z.array(TranscriptSegmentSchema),
+  engine: z.string().describe("What produced it, e.g. whisper-cpp, openai, elevenlabs"),
+  model: z.string().nullable(),
+  createdAt: isoDate,
+});
+export type Transcript = z.infer<typeof TranscriptSchema>;
+
+/** Hashtags and mentions of a caption: lowercase, deduplicated, in order of appearance. */
+export function extractTags(caption: string | null): { hashtags: string[]; mentions: string[] } {
+  if (!caption) return { hashtags: [], mentions: [] };
+  const unique = (found: Iterable<RegExpMatchArray>): string[] => [
+    ...new Set([...found].map((m) => (m[1] as string).toLowerCase().replace(/\.+$/, ""))),
+  ];
+  return {
+    hashtags: unique(caption.matchAll(/#([\p{L}\p{N}_]+)/gu)),
+    mentions: unique(caption.matchAll(/(?<![\p{L}\p{N}_.@])@([A-Za-z0-9._]+)/gu)).filter(Boolean),
+  };
+}
 
 export const RankedVideoSchema = StoredVideoSchema.extend({
   outlierScore: z
