@@ -222,6 +222,20 @@ export function metaCommands(getAll: () => CommandDef[]) {
         "Optional fallback downloader. Install from https://github.com/yt-dlp/yt-dlp",
         false,
       );
+      add(
+        "ffprobe",
+        hasCommand("ffprobe"),
+        hasCommand("ffprobe") ? "found on PATH" : "not found",
+        "Optional: measures duration and size of downloaded videos. Install ffmpeg from https://ffmpeg.org/download.html",
+        false,
+      );
+      add(
+        "ffmpeg",
+        hasCommand("ffmpeg"),
+        hasCommand("ffmpeg") ? "found on PATH" : "not found",
+        "Optional: used for media analysis. Install ffmpeg from https://ffmpeg.org/download.html",
+        false,
+      );
 
       const healthy = checks.every((c) => c.ok || !c.required);
       const failing = checks.filter((c) => !c.ok && c.required && c.hint?.startsWith("ig "));
