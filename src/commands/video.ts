@@ -5,6 +5,7 @@ import type { Context } from "../context.js";
 import { type DownloadRequest, type DownloadSummary, downloadVideos } from "../core/download.js";
 import { MIN_VIDEOS_FOR_OUTLIER, rankVideos, sortVideos } from "../core/ranking.js";
 import { refreshCreator } from "../core/refresh.js";
+import { computeVelocities, DEFAULT_WINDOW, parseWindow } from "../core/trends.js";
 import {
   normalizeUsername,
   type RankedVideo,
@@ -82,7 +83,18 @@ export function selectTop(ctx: Context, sel: TopSelection): TopResult {
           creatorId: sel.creator ? creators[0]?.id : undefined,
           niche: sel.niche,
         });
-  const ranked = rankVideos(all, new Map(creators.map((c) => [c.id, { followers: c.followers }])));
+  const ranked = rankVideos(
+    all,
+    new Map(creators.map((c) => [c.id, { followers: c.followers }])),
+    computeVelocities(
+      all,
+      ctx.store.listVideoSnapshots({
+        creatorId: sel.creator ? creators[0]?.id : undefined,
+        niche: sel.niche,
+      }),
+      parseWindow(DEFAULT_WINDOW),
+    ),
+  );
 
   const withPlays = new Map<string, number>();
   for (const v of all) {
@@ -247,6 +259,14 @@ function rankedMetrics(sort: SortKey): Column<RankedVideo>[] {
       return [metricColumn("COMMENTS", (r) => compact(r.comments), true), plays()];
     case "recent":
       return [plays(), outlier()];
+    case "velocity":
+      return [
+        metricColumn("VELOCITY", (r) => multiple(r.velocityScore), true),
+        metricColumn("PLAYS/DAY", (r) =>
+          compact(r.velocity === null ? null : Math.round(r.velocity)),
+        ),
+        plays(),
+      ];
   }
 }
 
@@ -399,7 +419,7 @@ const top = defineCommand({
     cmd
       .option("--niche <slug>", "only this niche")
       .option("--creator <username>", "only this creator")
-      .option("--sort <key>", "outlier | plays | engagement | likes | comments | recent")
+      .option("--sort <key>", "outlier | plays | engagement | likes | comments | recent | velocity")
       .option("--limit <n>", "maximum results (default 20)")
       .option("--since <when>", "only videos newer than 30d, 12h, 2w or a date")
       .option("--min-plays <n>", "drop videos below this")
@@ -616,7 +636,7 @@ const download = defineCommand({
       .option("--creator <username>", "with --top: only this creator")
       .option(
         "--sort <key>",
-        "with --top: outlier | plays | engagement | likes | comments | recent",
+        "with --top: outlier | plays | engagement | likes | comments | recent | velocity",
       )
       .option("--since <when>", "with --top: only videos newer than 30d, 12h, 2w or a date")
       .option("--per-creator <n>", "with --top: at most this many per creator")
