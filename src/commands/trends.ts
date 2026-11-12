@@ -15,7 +15,6 @@ import {
   MIN_SPAN_HOURS,
   parseWindow,
   postingCadence,
-  round,
   videoHistory,
   WEEKDAYS,
 } from "../core/trends.js";
@@ -31,6 +30,7 @@ import {
 import { defineCommand, flags } from "../lib/command.js";
 import { IgError } from "../lib/errors.js";
 import { ago, compact, multiple, percent } from "../lib/format.js";
+import { round } from "../lib/math.js";
 import { type NextStep, oneLine } from "../lib/output.js";
 import { type Column, printTable, renderRecord } from "../lib/table.js";
 

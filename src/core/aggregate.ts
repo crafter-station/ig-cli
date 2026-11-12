@@ -5,6 +5,7 @@
 // hashtag look good. The outlier score comes from `rankVideos`, so it is
 // relative to each creator's own usual numbers.
 
+import { round } from "../lib/math.js";
 import { median } from "./ranking.js";
 import type { RankedVideo } from "./types.js";
 
@@ -22,7 +23,7 @@ export type GroupStats = {
 export const AGGREGATE_SORTS = ["videos", "outlier", "creators", "plays"] as const;
 export type AggregateSort = (typeof AGGREGATE_SORTS)[number];
 
-const round2 = (n: number | null): number | null => (n === null ? null : Math.round(n * 100) / 100);
+const round2 = (n: number | null): number | null => (n === null ? null : round(n));
 
 const numbers = (values: (number | null)[]): number[] =>
   values.filter((v): v is number => v !== null);

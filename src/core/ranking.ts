@@ -1,6 +1,7 @@
 // "Trending for a creator" means a video that did unusually well *for them*,
 // not a video with a big absolute number because the account is big.
 
+import { round } from "../lib/math.js";
 import type { RankedVideo, SortKey, StoredVideo, VelocityFields } from "./types.js";
 
 export function median(values: number[]): number | null {
@@ -61,11 +62,6 @@ export function rankVideos(
       velocityScore: velocity?.velocityScore ?? null,
     };
   });
-}
-
-function round(n: number, digits = 2): number {
-  const f = 10 ** digits;
-  return Math.round(n * f) / f;
 }
 
 function metric(v: RankedVideo, key: SortKey): number | null {

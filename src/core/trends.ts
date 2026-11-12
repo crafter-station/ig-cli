@@ -4,6 +4,7 @@
 
 import { IgError } from "../lib/errors.js";
 import { parseSince } from "../lib/format.js";
+import { round } from "../lib/math.js";
 import { MIN_VIDEOS_FOR_OUTLIER, median } from "./ranking.js";
 import type { StoredVideo, VelocityFields } from "./types.js";
 
@@ -45,11 +46,6 @@ export function parseWindow(value: string, now = Date.now()): number {
     });
   }
   return ms;
-}
-
-export function round(n: number, digits = 2): number {
-  const f = 10 ** digits;
-  return Math.round(n * f) / f;
 }
 
 // --- change of one counter over a window ---------------------------------------
