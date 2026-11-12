@@ -15,6 +15,8 @@ Case file in the format of the `cli-build` skill (`cases/README.md`). `friction.
 
 Discovers creators and short videos by topic, tracks creators in named niches, snapshots follower and video metrics on each refresh, ranks videos by how far they beat their creator's own median, and downloads them. Read-only.
 
+Added after the first version, each on its own branch: filters by hashtag, mention, sound and duration with per-niche statistics (`niche tags | audio | durations`, `video probe`); transcription with a local whisper.cpp, ElevenLabs or OpenAI, plus hooks and search over what is said (`video transcribe | transcript | hooks | said`); editing analysis with key frames and a contact sheet (`video analyze | frames`, `niche pace`); growth from the stored snapshots (`video trending | history`, `creator history`, `niche movers`); and complete captions on demand (`--captions`, `video captions`). The first version only touched Instagram; the cloud transcription engines are the first thing here that uploads third-party content to a paid provider, which is why `video transcribe` has a dry run that reports the minutes before anything is sent and never falls through from an unusable engine to one that uploads.
+
 ## Contract origin
 
 Mixed, and classified that way before any code.
@@ -57,7 +59,7 @@ Safety was sized to the damage: the thing at risk is a logged-in account. One `G
 ## Evidence
 
 - Repo: `crafter-station/ig-cli` (private). Entry `src/cli.ts`, commands in `src/commands/`, backends in `src/backends/{browser,hiker}/`, store in `src/db/store.ts`.
-- 312 tests in 13 files. Browser fixtures are trimmed live captures (`test/fixtures/browser/`); the paid-API fixtures are document-derived and say so (`test/fixtures/hiker/README.md`).
+- 819 tests in 29 files after the additions (312 in 13 for the first version). Browser fixtures are trimmed live captures (`test/fixtures/browser/`); the paid-API fixtures are document-derived and say so (`test/fixtures/hiker/README.md`).
 - Observed live with the linked binary: `creator search` (2 requests), `creator add` (1), `niche refresh` of one creator with 14 reels (3), `video top`, `video download` of one 13 MB mp4 (1), `video discover` (1). No block signals.
-- Not observed: the paid-API backend against a live key; `creator search --expand`; a refresh interrupted by a real block; `auth login` driven through the CLI itself (the session was created by a recon script and its marker written by hand); a real terminal (human output was read through `NO_JSON=1` over a pipe).
+- Not observed: the paid-API backend against a live key; `creator search --expand`; a refresh interrupted by a real block; `auth login` driven through the CLI itself (the session was created by a recon script and its marker written by hand); a real terminal (human output was read through `NO_JSON=1` over a pipe). Of the additions: the paid-API backend's audio fields; the OpenAI transcription engine outside mocks; cut detection on more than the one real reel it was tuned on.
 - Halt marker: `<state>/halt.json`. There is no audit log; no v1 command warrants one.
