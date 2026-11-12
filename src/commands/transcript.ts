@@ -530,7 +530,7 @@ const hooks = defineCommand({
       data,
       columns,
       transcribed === 0
-        ? "No transcripts in this scope yet. Run `ig video transcribe`."
+        ? "No transcripts in this scope yet. Run `ig video transcribe --all-downloaded`."
         : `None of the ${transcribed} transcribed videos says anything in its opening seconds.`,
     );
   },
